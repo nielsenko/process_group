@@ -1,0 +1,5 @@
+.dart_tool/
+.zig-cache/
+zig-out/
+pubspec.lock
+/binary/

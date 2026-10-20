@@ -1,0 +1,8 @@
+# The published package carries binary/ and no build.zig, so consumers
+# need no zig. src/ stays for reading.
+/.dart_tool/
+/.zig-cache/
+/zig-out/
+/build.zig
+/build.zig.zon
+pubspec.lock

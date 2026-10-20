@@ -1,0 +1,2 @@
+# zig fmt and dart format expect LF, also on Windows checkouts.
+* text=auto eol=lf

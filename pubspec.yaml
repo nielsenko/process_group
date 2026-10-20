@@ -1,0 +1,17 @@
+name: leash
+description: >-
+  Starts a process on a leash: killing it ends every process it started, on
+  POSIX through a process group and on Windows through a job object.
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
+  zig_hook:
+    path: ../zig_hook/dart
+
+zig_hook:
+  artifact: executable

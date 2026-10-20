@@ -1,0 +1,14 @@
+.{
+    .name = .leash,
+    .version = "0.1.0",
+    .fingerprint = 0x98760828a8b18022,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .zig_hook = .{ .path = "../zig_hook" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
