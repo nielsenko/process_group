@@ -1,0 +1,47 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: macos-latest
+            target: macos-arm64
+          - os: windows-latest
+            target: windows-x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: leash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: leash
+      # zig_hook is a path dependency of the pubspec and of build.zig.zon,
+      # checked out beside the package. ZIG_HOOK_TOKEN is a token that can
+      # read it while the repository is private.
+      - uses: actions/checkout@v4
+        with:
+          repository: nielsenko/zig_hook
+          path: zig_hook
+          token: ${{ secrets.ZIG_HOOK_TOKEN || github.token }}
+      - uses: dart-lang/setup-dart@v1
+      - uses: ./zig_hook/.github/actions/setup-zig
+        with:
+          zon: leash/build.zig.zon
+      - run: zig fmt --check build.zig src
+      - run: zig test src/windows.zig
+      - run: dart pub get
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze
+      - run: dart run zig_hook:build_binaries ${{ matrix.target }}
+      - run: dart test
+      - if: matrix.os == 'ubuntu-latest'
+        uses: ./zig_hook/.github/actions/prebuilt
+        with:
+          package: leash
