@@ -42,8 +42,9 @@ command.
   SIGINT and forward it with `kill(ProcessSignal.sigint)`.
 - With `ProcessStartMode.inheritStdio` the command cannot read the
   terminal: a background process group that tries is stopped.
-- A process that leaves the group on its own, with `setsid` or as a daemon,
-  is not reached.
+- A process that leaves on its own is not reached: `setsid` or a daemon
+  fork on POSIX, `CREATE_BREAKAWAY_FROM_JOB` on Windows, which the job
+  allows.
 - On Windows `pid` is the helper's, and the exit code is forwarded.
 
 ## The helper

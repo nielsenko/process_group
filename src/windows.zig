@@ -72,6 +72,7 @@ const JOBOBJECT_EXTENDED_LIMIT_INFORMATION = extern struct {
 };
 
 const JobObjectExtendedLimitInformation: c_int = 9;
+const JOB_OBJECT_LIMIT_BREAKAWAY_OK: w.DWORD = 0x800;
 const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: w.DWORD = 0x2000;
 
 pub fn main(init: std.process.Init.Minimal) void {
@@ -90,7 +91,11 @@ pub fn main(init: std.process.Init.Minimal) void {
 
     const job = CreateJobObjectW(null, null) orelse fail("CreateJobObject");
     var limits = std.mem.zeroes(JOBOBJECT_EXTENDED_LIMIT_INFORMATION);
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    // Kill on close takes the tree with leash. Breakaway lets a process
+    // that asks for CREATE_BREAKAWAY_FROM_JOB leave, as setsid does on
+    // POSIX, where it would otherwise fail to start.
+    limits.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
     if (!succeeded(SetInformationJobObject(
         job,
         JobObjectExtendedLimitInformation,
