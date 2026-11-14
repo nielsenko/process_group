@@ -206,7 +206,7 @@ void main() {
       'leashed-process-no-such-command',
       [],
     );
-    expect(await text(process.stderr), contains('leash:'));
+    expect(await text(process.stderr), contains('leashed_process_helper:'));
     expect(await process.exitCode, 127);
   });
 
@@ -248,7 +248,14 @@ void main() {
 
   test('the helper is found under binary/ for this platform', () async {
     final helper = await LeashedProcess.helper();
-    expect(helper, endsWith(Platform.isWindows ? 'leash.exe' : 'leash'));
+    expect(
+      helper,
+      endsWith(
+        Platform.isWindows
+            ? 'leashed_process_helper.exe'
+            : 'leashed_process_helper',
+      ),
+    );
     expect(helper, contains(Abi.current().toString().replaceAll('_', '-')));
   });
 }

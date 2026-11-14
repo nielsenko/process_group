@@ -49,8 +49,8 @@ left behind.
 
 ## How
 
-A helper executable, `binary/<os>-<arch>/leash`, sits between Dart and the
-command.
+A helper executable, `binary/<os>-<arch>/leashed_process_helper`, sits
+between Dart and the command.
 
 - POSIX: it calls `setpgid(0, 0)`, or `setsid()` for a new session, and
   execs the command. The pid Dart got is the command's pid and its process

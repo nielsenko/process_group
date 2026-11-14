@@ -1,6 +1,8 @@
 const std = @import("std");
 const w = std.os.windows;
 
+const program = "leashed_process_helper";
+
 const exit_usage = 64;
 const exit_os_error = 71;
 const exit_not_found = 127;
@@ -76,22 +78,22 @@ const JOB_OBJECT_LIMIT_BREAKAWAY_OK: w.DWORD = 0x800;
 const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: w.DWORD = 0x2000;
 
 pub fn main(init: std.process.Init.Minimal) void {
-    // The raw command line, handed on past leash's own name so the command
-    // sees exactly the quoting its caller wrote.
+    // The raw command line, handed on past the helper's own name so the
+    // command sees exactly the quoting its caller wrote.
     const line = afterFirstArgument(init.args.vector);
     if (line.len == 0) {
-        std.debug.print("usage: leash <command> [argument...]\n", .{});
+        std.debug.print("usage: " ++ program ++ " <command> [argument...]\n", .{});
         std.process.exit(exit_usage);
     }
     const command = std.heap.page_allocator.allocSentinel(u16, line.len, 0) catch {
-        std.debug.print("leash: out of memory\n", .{});
+        std.debug.print(program ++ ": out of memory\n", .{});
         std.process.exit(exit_os_error);
     };
     @memcpy(command, line);
 
     const job = CreateJobObjectW(null, null) orelse fail("CreateJobObject");
     var limits = std.mem.zeroes(JOBOBJECT_EXTENDED_LIMIT_INFORMATION);
-    // Kill on close takes the tree with leash. Breakaway lets a process
+    // Kill on close takes the tree with the helper. Breakaway lets a process
     // that asks for CREATE_BREAKAWAY_FROM_JOB leave, as setsid does on
     // POSIX, where it would otherwise fail to start.
     limits.BasicLimitInformation.LimitFlags =
@@ -124,7 +126,7 @@ pub fn main(init: std.process.Init.Minimal) void {
         &startup,
         &info,
     ))) {
-        std.debug.print("leash: CreateProcess: {s}\n", .{@tagName(w.GetLastError())});
+        std.debug.print(program ++ ": CreateProcess: {s}\n", .{@tagName(w.GetLastError())});
         std.process.exit(exit_not_found);
     }
     if (!succeeded(AssignProcessToJobObject(job, info.hProcess))) {
@@ -145,7 +147,7 @@ fn succeeded(result: w.BOOL) bool {
 }
 
 fn fail(call: []const u8) noreturn {
-    std.debug.print("leash: {s}: {s}\n", .{ call, @tagName(w.GetLastError()) });
+    std.debug.print(program ++ ": {s}: {s}\n", .{ call, @tagName(w.GetLastError()) });
     std.process.exit(exit_os_error);
 }
 
@@ -171,8 +173,8 @@ fn isBlank(unit: u16) bool {
 
 test afterFirstArgument {
     const L = std.unicode.utf8ToUtf16LeStringLiteral;
-    try std.testing.expectEqualSlices(u16, L("a b"), afterFirstArgument(L("leash a b")));
-    try std.testing.expectEqualSlices(u16, L("a  b"), afterFirstArgument(L("\"C:\\x y\\leash.exe\"  a  b")));
-    try std.testing.expectEqualSlices(u16, L(""), afterFirstArgument(L("leash")));
+    try std.testing.expectEqualSlices(u16, L("a b"), afterFirstArgument(L("helper a b")));
+    try std.testing.expectEqualSlices(u16, L("a  b"), afterFirstArgument(L("\"C:\\x y\\helper.exe\"  a  b")));
+    try std.testing.expectEqualSlices(u16, L(""), afterFirstArgument(L("helper")));
     try std.testing.expectEqualSlices(u16, L(""), afterFirstArgument(L("")));
 }

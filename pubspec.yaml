@@ -15,4 +15,4 @@ dev_dependencies:
 
 zig_hook:
   artifact: executable
-  name: leash
+  name: leashed_process_helper

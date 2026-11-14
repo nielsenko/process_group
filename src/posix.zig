@@ -4,6 +4,8 @@ const builtin = @import("builtin");
 const c = std.c;
 const linux = std.os.linux;
 
+const program = "leashed_process_helper";
+
 /// errno comes from libc where it is linked, which is always the case on
 /// macOS, and from the raw syscalls on Linux otherwise.
 const E = if (builtin.link_libc) c.E else linux.E;
@@ -20,7 +22,7 @@ pub fn main(init: std.process.Init.Minimal) void {
         std.mem.eql(u8, std.mem.span(args[1]), "--session");
     const command = args[if (session) 2 else @min(1, args.len)..];
     if (command.len == 0) {
-        std.debug.print("usage: leash [--session] <command> [argument...]\n", .{});
+        std.debug.print("usage: " ++ program ++ " [--session] <command> [argument...]\n", .{});
         std.process.exit(exit_usage);
     }
     if (session) newSession() else newProcessGroup();
@@ -43,7 +45,7 @@ fn newProcessGroup() void {
     else
         linux.errno(linux.setpgid(0, 0));
     if (err != .SUCCESS) {
-        std.debug.print("leash: setpgid: {s}\n", .{@tagName(err)});
+        std.debug.print(program ++ ": setpgid: {s}\n", .{@tagName(err)});
         std.process.exit(exit_os_error);
     }
 }
@@ -59,7 +61,7 @@ fn newSession() void {
     else
         linux.errno(linux.setsid());
     if (err != .SUCCESS) {
-        std.debug.print("leash: setsid: {s}\n", .{@tagName(err)});
+        std.debug.print(program ++ ": setsid: {s}\n", .{@tagName(err)});
         std.process.exit(exit_os_error);
     }
 }
@@ -80,7 +82,7 @@ fn nullTerminated(args: []const [*:0]const u8) [*:null]const ?[*:0]const u8 {
         args.len,
         null,
     ) catch {
-        std.debug.print("leash: out of memory\n", .{});
+        std.debug.print(program ++ ": out of memory\n", .{});
         std.process.exit(exit_os_error);
     };
     for (args, argv) |arg, *slot| slot.* = arg;
@@ -111,7 +113,7 @@ fn exec(
             else => |err| fail(candidate, err),
         }
     }
-    std.debug.print("leash: {s}: {s}\n", .{
+    std.debug.print(program ++ ": {s}: {s}\n", .{
         command,
         if (denied) "permission denied" else "command not found",
     });
@@ -128,7 +130,7 @@ fn execve(
 }
 
 fn fail(path: []const u8, err: E) noreturn {
-    std.debug.print("leash: {s}: {s}\n", .{ path, @tagName(err) });
+    std.debug.print(program ++ ": {s}: {s}\n", .{ path, @tagName(err) });
     std.process.exit(switch (err) {
         .NOENT, .NOTDIR => exit_not_found,
         else => exit_not_executable,

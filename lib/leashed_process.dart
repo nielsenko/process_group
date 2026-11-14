@@ -64,7 +64,7 @@ final class LeashedProcess implements Process {
   static const helperVariable = 'LEASHED_PROCESS_HELPER';
 
   /// The helper executable for this platform: [helperVariable] when set,
-  /// else `binary/<os>-<arch>/leash` under this package.
+  /// else `binary/<os>-<arch>/leashed_process_helper` under this package.
   ///
   /// A checkout has no `binary/` until `dart run zig_hook:build_binaries`
   /// has run.
@@ -84,11 +84,12 @@ final class LeashedProcess implements Process {
       );
     }
     final directory = Abi.current().toString().replaceAll('_', '-');
-    final name = Platform.isWindows ? 'leash.exe' : 'leash';
+    const stem = 'leashed_process_helper';
+    final name = Platform.isWindows ? '$stem.exe' : stem;
     final path = library.resolve('../binary/$directory/$name').toFilePath();
     if (!File(path).existsSync()) {
       throw LeashHelperMissing(
-        'No leash helper for $directory at $path. In a checkout, run '
+        'No helper for $directory at $path. In a checkout, run '
         '`dart run zig_hook:build_binaries $directory`. Otherwise pass '
         'helperPath to LeashedProcess.start, or set $helperVariable to '
         'the helper executable.',
@@ -109,7 +110,7 @@ final class LeashedProcess implements Process {
   final LeashGroup? group;
 
   /// On POSIX the command's own pid, which is also its process group id.
-  /// On Windows the pid of the leash helper that owns the job object.
+  /// On Windows the pid of the helper that owns the job object.
   @override
   int get pid => _process.pid;
 
@@ -196,7 +197,7 @@ final _kill = DynamicLibrary.process()
       'kill',
     );
 
-/// The leash helper for this platform cannot be found.
+/// The helper for this platform cannot be found.
 final class LeashHelperMissing implements Exception {
   LeashHelperMissing(this.message);
 
