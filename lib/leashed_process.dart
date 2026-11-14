@@ -1,6 +1,6 @@
 /// Starts a process on a leash: killing it ends every process it started.
 ///
-/// [Leash.start] takes what [Process.start] takes and returns a [Process]
+/// [LeashedProcess.start] takes what [Process.start] takes and returns a [Process]
 /// whose [Process.kill] reaches the whole tree. A small helper executable,
 /// shipped under `binary/` per platform, does the work: on POSIX it moves
 /// into a new process group and becomes the command, on Windows it owns a
@@ -11,10 +11,93 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
-/// A process started by [Leash.start].
+/// A process started by [LeashedProcess.start].
 final class LeashedProcess implements Process {
   LeashedProcess._(this._process)
     : group = Platform.isWindows ? null : LeashGroup(_process.pid);
+
+  /// Starts [executable] with [arguments] on a leash.
+  ///
+  /// The parameters are those of [Process.start] without `runInShell`:
+  /// the helper looks [executable] up on PATH itself, and a shell would
+  /// only add a process to the tree. [workingDirectory] and the
+  /// environment reach the command as they would from [Process.start].
+  ///
+  /// With [newSession] the command leads a session of its own as well,
+  /// which takes it off this program's terminal. Neither the command nor
+  /// what it starts can open `/dev/tty`, to prompt on it or to draw on it.
+  /// Windows has no such session, and [newSession] does nothing there.
+  ///
+  /// [helperPath] names the helper executable to start, in place of the
+  /// one [helper] finds. A program that ships its own copy passes it.
+  ///
+  /// Throws [LeashHelperMissing] when the helper for this platform is not
+  /// available, see [helper].
+  static Future<LeashedProcess> start(
+    String executable,
+    List<String> arguments, {
+    String? workingDirectory,
+    Map<String, String>? environment,
+    bool includeParentEnvironment = true,
+    ProcessStartMode mode = ProcessStartMode.normal,
+    bool newSession = false,
+    String? helperPath,
+  }) async {
+    final process = await Process.start(
+      helperPath ?? await helper(),
+      [
+        if (newSession && !Platform.isWindows) '--session',
+        executable,
+        ...arguments,
+      ],
+      workingDirectory: workingDirectory,
+      environment: environment,
+      includeParentEnvironment: includeParentEnvironment,
+      mode: mode,
+    );
+    return LeashedProcess._(process);
+  }
+
+  /// The environment variable that names the helper executable from
+  /// outside a program with no package root at run time, such as one built
+  /// with `dart compile exe`.
+  static const helperVariable = 'LEASHED_PROCESS_HELPER';
+
+  /// The helper executable for this platform: [helperVariable] when set,
+  /// else `binary/<os>-<arch>/leash` under this package.
+  ///
+  /// A checkout has no `binary/` until `dart run zig_hook:build_binaries`
+  /// has run.
+  static Future<String> helper() async {
+    final override = Platform.environment[helperVariable];
+    if (override != null) return override;
+    if (_helper case final found?) return found;
+
+    final library = await Isolate.resolvePackageUri(
+      Uri.parse('package:leashed_process/leashed_process.dart'),
+    );
+    if (library == null) {
+      throw LeashHelperMissing(
+        'package:leashed_process does not resolve to a directory, so its '
+        'binary/ cannot be found. Pass helperPath to LeashedProcess.start, '
+        'or set $helperVariable to the helper executable.',
+      );
+    }
+    final directory = Abi.current().toString().replaceAll('_', '-');
+    final name = Platform.isWindows ? 'leash.exe' : 'leash';
+    final path = library.resolve('../binary/$directory/$name').toFilePath();
+    if (!File(path).existsSync()) {
+      throw LeashHelperMissing(
+        'No leash helper for $directory at $path. In a checkout, run '
+        '`dart run zig_hook:build_binaries $directory`. Otherwise pass '
+        'helperPath to LeashedProcess.start, or set $helperVariable to '
+        'the helper executable.',
+      );
+    }
+    return _helper = path;
+  }
+
+  static String? _helper;
 
   final Process _process;
 
@@ -121,89 +204,4 @@ final class LeashHelperMissing implements Exception {
 
   @override
   String toString() => message;
-}
-
-abstract final class Leash {
-  /// Starts [executable] with [arguments] on a leash.
-  ///
-  /// The parameters are those of [Process.start] without `runInShell`:
-  /// the helper looks [executable] up on PATH itself, and a shell would
-  /// only add a process to the tree. [workingDirectory] and the
-  /// environment reach the command as they would from [Process.start].
-  ///
-  /// With [newSession] the command leads a session of its own as well,
-  /// which takes it off this program's terminal. Neither the command nor
-  /// what it starts can open `/dev/tty`, to prompt on it or to draw on it.
-  /// Windows has no such session, and [newSession] does nothing there.
-  ///
-  /// [helperPath] names the helper executable to start, in place of the
-  /// one [helper] finds. A program that ships its own copy passes it.
-  ///
-  /// Throws [LeashHelperMissing] when the helper for this platform is not
-  /// available, see [helper].
-  static Future<LeashedProcess> start(
-    String executable,
-    List<String> arguments, {
-    String? workingDirectory,
-    Map<String, String>? environment,
-    bool includeParentEnvironment = true,
-    ProcessStartMode mode = ProcessStartMode.normal,
-    bool newSession = false,
-    String? helperPath,
-  }) async {
-    final process = await Process.start(
-      helperPath ?? await helper(),
-      [
-        if (newSession && !Platform.isWindows) '--session',
-        executable,
-        ...arguments,
-      ],
-      workingDirectory: workingDirectory,
-      environment: environment,
-      includeParentEnvironment: includeParentEnvironment,
-      mode: mode,
-    );
-    return LeashedProcess._(process);
-  }
-
-  /// The environment variable that names the helper executable from
-  /// outside a program with no package root at run time, such as one built
-  /// with `dart compile exe`.
-  static const helperVariable = 'LEASHED_PROCESS_HELPER';
-
-  /// The helper executable for this platform: [helperVariable] when set,
-  /// else `binary/<os>-<arch>/leash` under this package.
-  ///
-  /// A checkout has no `binary/` until `dart run zig_hook:build_binaries`
-  /// has run.
-  static Future<String> helper() async {
-    final override = Platform.environment[helperVariable];
-    if (override != null) return override;
-    if (_helper case final found?) return found;
-
-    final library = await Isolate.resolvePackageUri(
-      Uri.parse('package:leashed_process/leashed_process.dart'),
-    );
-    if (library == null) {
-      throw LeashHelperMissing(
-        'package:leashed_process does not resolve to a directory, so its binary/ '
-        'cannot be found. Pass helperPath to Leash.start, or set '
-        '$helperVariable to the leash executable.',
-      );
-    }
-    final directory = Abi.current().toString().replaceAll('_', '-');
-    final name = Platform.isWindows ? 'leash.exe' : 'leash';
-    final path = library.resolve('../binary/$directory/$name').toFilePath();
-    if (!File(path).existsSync()) {
-      throw LeashHelperMissing(
-        'No leash helper for $directory at $path. In a checkout, run '
-        '`dart run zig_hook:build_binaries $directory`. Otherwise pass '
-        'helperPath to Leash.start, or set $helperVariable to the leash '
-        'executable.',
-      );
-    }
-    return _helper = path;
-  }
-
-  static String? _helper;
 }

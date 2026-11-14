@@ -45,7 +45,7 @@ List<String> shell(String posix, String windows) => Platform.isWindows
 void main() {
   setUpAll(() async {
     try {
-      await Leash.helper();
+      await LeashedProcess.helper();
     } on LeashHelperMissing {
       final directory = Abi.current().toString().replaceAll('_', '-');
       final result = await Process.run(Platform.resolvedExecutable, [
@@ -61,7 +61,7 @@ void main() {
 
   test('the command runs with its own pid as the process group', () async {
     final [executable, ...arguments] = shell(r'echo $$', '');
-    final process = await Leash.start(executable, arguments);
+    final process = await LeashedProcess.start(executable, arguments);
     expect((await text(process.stdout)).trim(), '${process.pid}');
     expect(await process.exitCode, 0);
   }, skip: Platform.isWindows ? 'On Windows the pid is the helper\'s.' : null);
@@ -69,12 +69,16 @@ void main() {
   test('with newSession the command leads a session of its own', () async {
     // In the state `ps` prints, a lower case s marks a session leader.
     final [executable, ...arguments] = shell(r'ps -o pgid=,stat= -p $$', '');
-    final grouped = await Leash.start(executable, arguments);
+    final grouped = await LeashedProcess.start(executable, arguments);
     final [group, state] = (await text(grouped.stdout)).trim().split(spaces);
     expect(group, '${grouped.pid}');
     expect(state, isNot(contains('s')));
 
-    final own = await Leash.start(executable, arguments, newSession: true);
+    final own = await LeashedProcess.start(
+      executable,
+      arguments,
+      newSession: true,
+    );
     final [ownGroup, ownState] = (await text(own.stdout)).trim().split(spaces);
     expect(ownGroup, '${own.pid}');
     expect(ownState, contains('s'));
@@ -82,7 +86,7 @@ void main() {
 
   test('the command runs when Dart starts the helper detached', () async {
     final [executable, ...arguments] = shell(r'echo $$', '');
-    final process = await Leash.start(
+    final process = await LeashedProcess.start(
       executable,
       arguments,
       mode: ProcessStartMode.detachedWithStdio,
@@ -97,7 +101,7 @@ void main() {
           r'-PassThru -WindowStyle Hidden; Write-Output $p.Id; '
           r'Wait-Process -Id $p.Id',
     );
-    final process = await Leash.start(executable, arguments);
+    final process = await LeashedProcess.start(executable, arguments);
     final first = utf8.decode(await process.stdout.first).trim();
     if (Platform.isWindows) {
       final child = int.parse(first);
@@ -117,7 +121,7 @@ void main() {
   });
 
   test('killCommand leaves what the command started running', () async {
-    final process = await Leash.start('sh', [
+    final process = await LeashedProcess.start('sh', [
       '-c',
       'sleep 300 & echo ready; wait',
     ]);
@@ -133,7 +137,10 @@ void main() {
   }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
 
   test('the group outlives the command until it is stopped', () async {
-    final process = await Leash.start('sh', ['-c', 'sleep 300 & echo ready']);
+    final process = await LeashedProcess.start('sh', [
+      '-c',
+      'sleep 300 & echo ready',
+    ]);
     expect(await process.exitCode, 0);
     final group = process.group!;
     expect(group.id, process.pid);
@@ -146,7 +153,7 @@ void main() {
   }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
 
   test('stop kills what ignores SIGTERM once the grace is over', () async {
-    final process = await Leash.start('sh', [
+    final process = await LeashedProcess.start('sh', [
       '-c',
       'trap "" TERM; sleep 300 & echo ready; wait',
     ]);
@@ -174,7 +181,7 @@ void main() {
             r'Write-Output ($line + " " + $env:LEASHED_PROCESS_TEST + " " + (Get-Location).Path); '
             r"[Console]::Error.WriteLine('err'); exit 7",
       );
-      final process = await Leash.start(
+      final process = await LeashedProcess.start(
         executable,
         arguments,
         workingDirectory: dir.path,
@@ -195,7 +202,10 @@ void main() {
   );
 
   test('a command that does not exist exits with 127', () async {
-    final process = await Leash.start('leashed-process-no-such-command', []);
+    final process = await LeashedProcess.start(
+      'leashed-process-no-such-command',
+      [],
+    );
     expect(await text(process.stderr), contains('leash:'));
     expect(await process.exitCode, 127);
   });
@@ -204,7 +214,7 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
     addTearDown(() => dir.delete(recursive: true));
     final plain = File('${dir.path}/plain')..writeAsStringSync('');
-    final process = await Leash.start(plain.path, []);
+    final process = await LeashedProcess.start(plain.path, []);
     expect(await process.exitCode, 126);
   }, skip: Platform.isWindows ? 'Windows has no executable bit.' : null);
 
@@ -212,9 +222,10 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
     addTearDown(() => dir.delete(recursive: true));
     final name = Platform.isWindows ? 'copy.exe' : 'copy';
-    final copy = await File(await Leash.helper()).copy('${dir.path}/$name');
+    final copy = await File(await LeashedProcess.helper())
+        .copy('${dir.path}/$name');
     final [executable, ...arguments] = shell('echo out', "Write-Output 'out'");
-    final process = await Leash.start(
+    final process = await LeashedProcess.start(
       executable,
       arguments,
       helperPath: copy.path,
@@ -224,7 +235,7 @@ void main() {
 
     final missing = '${dir.path}/missing';
     await expectLater(
-      Leash.start(executable, arguments, helperPath: missing),
+      LeashedProcess.start(executable, arguments, helperPath: missing),
       throwsA(
         isA<ProcessException>().having(
           (e) => e.executable,
@@ -236,7 +247,7 @@ void main() {
   });
 
   test('the helper is found under binary/ for this platform', () async {
-    final helper = await Leash.helper();
+    final helper = await LeashedProcess.helper();
     expect(helper, endsWith(Platform.isWindows ? 'leash.exe' : 'leash'));
     expect(helper, contains(Abi.current().toString().replaceAll('_', '-')));
   });

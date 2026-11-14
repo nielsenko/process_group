@@ -5,21 +5,21 @@ Starts a process on a leash: killing it ends every process it started.
 `Process.kill` reaches one process. When that process is a wrapper, such as
 a shell script or a version manager's launcher, the program behind it keeps
 running: `bash` holds a SIGINT it received alone until its child exits, and
-SIGKILL orphans the child. `Leash.start` takes what `Process.start` takes
-and returns a `Process` whose `kill` reaches the whole tree.
+SIGKILL orphans the child. `LeashedProcess.start` takes what `Process.start`
+takes and returns a `Process` whose `kill` reaches the whole tree.
 
 ```dart
 import 'package:leashed_process/leashed_process.dart';
 
-final process = await Leash.start('flutter', ['run', '--machine']);
+final process = await LeashedProcess.start('flutter', ['run', '--machine']);
 // ...
 process.kill(); // flutter, and everything it started
 ```
 
-`Leash.start` has `Process.start`'s parameters except `runInShell`: the
-helper looks the command up on PATH itself, and a shell would only add a
-process to the tree. The result implements `Process`. On POSIX `pid` is the
-command's own.
+`LeashedProcess.start` has `Process.start`'s parameters except
+`runInShell`: the helper looks the command up on PATH itself, and a shell
+would only add a process to the tree. The result implements `Process`. On
+POSIX `pid` is the command's own.
 
 With `newSession: true` the command leads a session of its own as well.
 That takes it off the program's terminal. The command and what it starts
@@ -33,7 +33,7 @@ On POSIX the process group outlives the command for as long as a process
 it started is still in it. `process.group` is that group:
 
 ```dart
-final process = await Leash.start('dart', ['test']);
+final process = await LeashedProcess.start('dart', ['test']);
 final code = await process.exitCode;
 // A server that a test started and never stopped is still running.
 await process.group?.stop(); // SIGTERM, then SIGKILL after two seconds
@@ -85,8 +85,8 @@ target when it is missing.
 
 A program with no package root at run time, such as one built with
 `dart compile exe`, ships the helper itself and passes its path to
-`Leash.start` as `helperPath`. `LEASHED_PROCESS_HELPER` in the environment names the
-helper from outside the program.
+`LeashedProcess.start` as `helperPath`. `LEASHED_PROCESS_HELPER` in the
+environment names the helper from outside the program.
 
 The helper's own exit codes follow the shell: 127 when the command is not
 found, 126 when it cannot run, 64 for a missing command, 71 for an OS
