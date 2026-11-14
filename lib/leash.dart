@@ -66,6 +66,11 @@ abstract final class Leash {
   /// only add a process to the tree. [workingDirectory] and the
   /// environment reach the command as they would from [Process.start].
   ///
+  /// With [newSession] the command leads a session of its own as well,
+  /// which takes it off this program's terminal. Neither the command nor
+  /// what it starts can open `/dev/tty`, to prompt on it or to draw on it.
+  /// Windows has no such session, and [newSession] does nothing there.
+  ///
   /// Throws [LeashHelperMissing] when the helper for this platform is not
   /// available, see [helper].
   static Future<LeashedProcess> start(
@@ -75,10 +80,15 @@ abstract final class Leash {
     Map<String, String>? environment,
     bool includeParentEnvironment = true,
     ProcessStartMode mode = ProcessStartMode.normal,
+    bool newSession = false,
   }) async {
     final process = await Process.start(
       await helper(),
-      [executable, ...arguments],
+      [
+        if (newSession && !Platform.isWindows) '--session',
+        executable,
+        ...arguments,
+      ],
       workingDirectory: workingDirectory,
       environment: environment,
       includeParentEnvironment: includeParentEnvironment,

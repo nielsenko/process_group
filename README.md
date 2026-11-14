@@ -21,14 +21,21 @@ helper looks the command up on PATH itself, and a shell would only add a
 process to the tree. The result implements `Process`. On POSIX `pid` is the
 command's own.
 
+With `newSession: true` the command leads a session of its own as well.
+That takes it off the program's terminal. The command and what it starts
+cannot open `/dev/tty`, so a password prompt from `git` or `ssh` cannot
+draw over a terminal UI. Windows has no such session, and the flag does
+nothing there.
+
 ## How
 
 A helper executable, `binary/<os>-<arch>/leash`, sits between Dart and the
 command.
 
-- POSIX: it calls `setpgid(0, 0)` and execs the command. The pid Dart got
-  is the command's pid and its process group id, so `kill` signals `-pid`,
-  which reaches every descendant still in the group.
+- POSIX: it calls `setpgid(0, 0)`, or `setsid()` for a new session, and
+  execs the command. The pid Dart got is the command's pid and its process
+  group id, so `kill` signals `-pid`, which reaches every descendant still
+  in the group.
 - Windows: it creates a job object with the kill-on-close limit, starts the
   command suspended, assigns it to the job, resumes it and waits, exiting
   with the command's exit code. Ending the helper closes the handle, and

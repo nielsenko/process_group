@@ -11,7 +11,7 @@ Future<Set<int>> processGroup(int pgid) async {
   final result = await Process.run('ps', ['-A', '-o', 'pid=,pgid=']);
   return {
     for (final line in LineSplitter.split(result.stdout as String))
-      if (line.trim().split(RegExp(r'\s+')) case [final pid, final group]
+      if (line.trim().split(spaces) case [final pid, final group]
           when int.parse(group) == pgid)
         int.parse(pid),
   };
@@ -22,6 +22,8 @@ Future<bool> windowsProcessExists(int pid) async {
   final result = await Process.run('tasklist', ['/FI', 'PID eq $pid', '/NH']);
   return !(result.stdout as String).contains('No tasks');
 }
+
+final spaces = RegExp(r'\s+');
 
 Future<String> text(Stream<List<int>> stream) =>
     stream.transform(utf8.decoder).join();
@@ -55,6 +57,20 @@ void main() {
     expect((await text(process.stdout)).trim(), '${process.pid}');
     expect(await process.exitCode, 0);
   }, skip: Platform.isWindows ? 'On Windows the pid is the helper\'s.' : null);
+
+  test('with newSession the command leads a session of its own', () async {
+    // In the state `ps` prints, a lower case s marks a session leader.
+    final [executable, ...arguments] = shell(r'ps -o pgid=,stat= -p $$', '');
+    final grouped = await Leash.start(executable, arguments);
+    final [group, state] = (await text(grouped.stdout)).trim().split(spaces);
+    expect(group, '${grouped.pid}');
+    expect(state, isNot(contains('s')));
+
+    final own = await Leash.start(executable, arguments, newSession: true);
+    final [ownGroup, ownState] = (await text(own.stdout)).trim().split(spaces);
+    expect(ownGroup, '${own.pid}');
+    expect(ownState, contains('s'));
+  }, skip: Platform.isWindows ? 'Windows has no sessions.' : null);
 
   test('the command runs when Dart starts the helper detached', () async {
     final [executable, ...arguments] = shell(r'echo $$', '');

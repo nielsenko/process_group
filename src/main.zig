@@ -2,7 +2,9 @@
 //!
 //! On POSIX it moves into a new process group and becomes the command, so
 //! the pid its parent knows is both the command's pid and the group id,
-//! and kill(-pid) reaches every descendant that stays in the group.
+//! and kill(-pid) reaches every descendant that stays in the group. With
+//! --session it starts a session instead, which also leaves the command
+//! without a controlling terminal.
 //!
 //! On Windows it creates a job object that ends its processes when its last
 //! handle closes, starts the command suspended inside it, resumes it and

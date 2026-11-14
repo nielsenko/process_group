@@ -16,18 +16,22 @@ const exit_not_found = 127;
 
 pub fn main(init: std.process.Init.Minimal) void {
     const args = init.args.vector;
-    if (args.len < 2) {
-        std.debug.print("usage: leash <command> [argument...]\n", .{});
+    const session = args.len > 1 and
+        std.mem.eql(u8, std.mem.span(args[1]), "--session");
+    const command = args[if (session) 2 else @min(1, args.len)..];
+    if (command.len == 0) {
+        std.debug.print("usage: leash [--session] <command> [argument...]\n", .{});
         std.process.exit(exit_usage);
     }
-    newProcessGroup();
+    if (session) newSession() else newProcessGroup();
     const envp: [*:null]const ?[*:0]const u8 = init.environ.block.slice.ptr;
-    exec(std.mem.span(args[1]), nullTerminated(args[1..]), envp);
+    exec(std.mem.span(command[0]), nullTerminated(command), envp);
 }
 
 // libc declarations std.c leaves out.
 const libc = struct {
     extern "c" fn getpgid(pid: c.pid_t) c.pid_t;
+    extern "c" fn getsid(pid: c.pid_t) c.pid_t;
 };
 
 fn newProcessGroup() void {
@@ -42,6 +46,27 @@ fn newProcessGroup() void {
         std.debug.print("leash: setpgid: {s}\n", .{@tagName(err)});
         std.process.exit(exit_os_error);
     }
+}
+
+/// Leaves this process leading a session, and with that a process group.
+/// A session made here has no controlling terminal. One this process led
+/// already keeps the terminal it has.
+fn newSession() void {
+    // Dart 3.14 starts a detached process as a session leader.
+    if (leadsSession()) return;
+    const err = if (builtin.link_libc)
+        c.errno(c.setsid())
+    else
+        linux.errno(linux.setsid());
+    if (err != .SUCCESS) {
+        std.debug.print("leash: setsid: {s}\n", .{@tagName(err)});
+        std.process.exit(exit_os_error);
+    }
+}
+
+fn leadsSession() bool {
+    if (builtin.link_libc) return libc.getsid(0) == c.getpid();
+    return linux.getsid(0) == @as(usize, @intCast(linux.getpid()));
 }
 
 fn leadsProcessGroup() bool {
