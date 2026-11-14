@@ -207,6 +207,21 @@ void main() {
     },
   );
 
+  test('the command is found on the PATH of its own environment', () async {
+    final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
+    addTearDown(() => dir.delete(recursive: true));
+    final tool = File('${dir.path}/leashed-process-test-tool')
+      ..writeAsStringSync('#!/bin/sh\necho found\n');
+    await Process.run('chmod', ['+x', tool.path]);
+    final process = await LeashedProcess.start(
+      'leashed-process-test-tool',
+      [],
+      environment: {'PATH': '${dir.path}:${Platform.environment['PATH']}'},
+    );
+    expect((await text(process.stdout)).trim(), 'found');
+    expect(await process.exitCode, 0);
+  }, skip: Platform.isWindows ? 'The tool is a shell script.' : null);
+
   test('a command that does not exist exits with 127', () async {
     final process = await LeashedProcess.start(
       'leashed-process-no-such-command',
