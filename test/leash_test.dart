@@ -116,6 +116,22 @@ void main() {
     expect(await processGroup(process.pid), isEmpty);
   });
 
+  test('killCommand leaves what the command started running', () async {
+    final process = await Leash.start('sh', [
+      '-c',
+      'sleep 300 & echo ready; wait',
+    ]);
+    await process.stdout.first;
+    expect(process.killCommand(ProcessSignal.sigkill), isTrue);
+    expect(await process.exitCode, -ProcessSignal.sigkill.signalNumber);
+    final group = process.group!;
+    expect(await processGroup(group.id), hasLength(1));
+
+    expect(group.kill(ProcessSignal.sigkill), isTrue);
+    await emptied(group);
+    expect(group.exists, isFalse);
+  }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
+
   test('the group outlives the command until it is stopped', () async {
     final process = await Leash.start('sh', ['-c', 'sleep 300 & echo ready']);
     expect(await process.exitCode, 0);

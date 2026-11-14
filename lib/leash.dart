@@ -52,6 +52,14 @@ final class LeashedProcess implements Process {
   @override
   bool kill([ProcessSignal signal = ProcessSignal.sigterm]) =>
       group?.kill(signal) ?? _process.kill(signal);
+
+  /// Sends [signal] to the command alone, which leaves what it started
+  /// running in [group].
+  ///
+  /// On Windows the job ends with its command, so this does what [kill]
+  /// does.
+  bool killCommand([ProcessSignal signal = ProcessSignal.sigterm]) =>
+      _process.kill(signal);
 }
 
 /// The process group of a leashed command, which holds the command and

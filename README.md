@@ -39,9 +39,10 @@ final code = await process.exitCode;
 await process.group?.stop(); // SIGTERM, then SIGKILL after two seconds
 ```
 
-`group.exists` says whether a process is left in it. The system may hand
-the id of an empty group to a new process, so stop a group while it exists
-and then forget it.
+`process.killCommand()` signals the command alone and leaves the rest of
+the group running. `group.exists` says whether a process is left in it.
+The system may hand the id of an empty group to a new process, so stop a
+group while it exists and then forget it.
 
 On Windows `group` is null. The job ends with its command, so nothing is
 left behind.
