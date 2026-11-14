@@ -1,4 +1,4 @@
-//! leashed_process_helper runs a command so that killing it ends every
+//! process_group_helper runs a command so that killing it ends every
 //! process the command started.
 //!
 //! On POSIX it moves into a new process group and becomes the command, so

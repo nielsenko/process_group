@@ -1,7 +1,7 @@
 const std = @import("std");
 const w = std.os.windows;
 
-const program = "leashed_process_helper";
+const program = "process_group_helper";
 
 const exit_usage = 64;
 const exit_os_error = 71;

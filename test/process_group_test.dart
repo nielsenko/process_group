@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
-import 'package:leashed_process/leashed_process.dart';
+import 'package:process_group/process_group.dart';
 import 'package:test/test.dart';
 
 /// Pids of every process in the group [pgid], from `ps`, which BSD and
@@ -177,21 +177,19 @@ void main() {
   test(
     'the exit code, stdio, environment and directory pass through',
     () async {
-      final dir = await Directory.systemTemp.createTemp(
-        'leashed_process_test_',
-      );
+      final dir = await Directory.systemTemp.createTemp('process_group_test_');
       addTearDown(() => dir.delete(recursive: true));
       final [executable, ...arguments] = shell(
-        r'read line; echo "$line $LEASHED_PROCESS_TEST $(pwd)"; echo err >&2; exit 7',
+        r'read line; echo "$line $PROCESS_GROUP_TEST $(pwd)"; echo err >&2; exit 7',
         r'$line = [Console]::In.ReadLine(); '
-            r'Write-Output ($line + " " + $env:LEASHED_PROCESS_TEST + " " + (Get-Location).Path); '
+            r'Write-Output ($line + " " + $env:PROCESS_GROUP_TEST + " " + (Get-Location).Path); '
             r"[Console]::Error.WriteLine('err'); exit 7",
       );
       final process = await LeashedProcess.start(
         executable,
         arguments,
         workingDirectory: dir.path,
-        environment: {'LEASHED_PROCESS_TEST': 'env'},
+        environment: {'PROCESS_GROUP_TEST': 'env'},
       );
       process.stdin.writeln('in');
       await process.stdin.close();
@@ -208,13 +206,13 @@ void main() {
   );
 
   test('the command is found on the PATH of its own environment', () async {
-    final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
+    final dir = await Directory.systemTemp.createTemp('process_group_test_');
     addTearDown(() => dir.delete(recursive: true));
-    final tool = File('${dir.path}/leashed-process-test-tool')
+    final tool = File('${dir.path}/process-group-test-tool')
       ..writeAsStringSync('#!/bin/sh\necho found\n');
     await Process.run('chmod', ['+x', tool.path]);
     final process = await LeashedProcess.start(
-      'leashed-process-test-tool',
+      'process-group-test-tool',
       [],
       environment: {'PATH': '${dir.path}:${Platform.environment['PATH']}'},
     );
@@ -224,15 +222,15 @@ void main() {
 
   test('a command that does not exist exits with 127', () async {
     final process = await LeashedProcess.start(
-      'leashed-process-no-such-command',
+      'process-group-no-such-command',
       [],
     );
-    expect(await text(process.stderr), contains('leashed_process_helper:'));
+    expect(await text(process.stderr), contains('process_group_helper:'));
     expect(await process.exitCode, 127);
   });
 
   test('a path that is not executable exits with 126', () async {
-    final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
+    final dir = await Directory.systemTemp.createTemp('process_group_test_');
     addTearDown(() => dir.delete(recursive: true));
     final plain = File('${dir.path}/plain')..writeAsStringSync('');
     final process = await LeashedProcess.start(plain.path, []);
@@ -240,7 +238,7 @@ void main() {
   }, skip: Platform.isWindows ? 'Windows has no executable bit.' : null);
 
   test('helperPath names the helper to start', () async {
-    final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
+    final dir = await Directory.systemTemp.createTemp('process_group_test_');
     addTearDown(() => dir.delete(recursive: true));
     final name = Platform.isWindows ? 'copy.exe' : 'copy';
     final copy = await File(await LeashedProcess.helper())
@@ -273,8 +271,8 @@ void main() {
       helper,
       endsWith(
         Platform.isWindows
-            ? 'leashed_process_helper.exe'
-            : 'leashed_process_helper',
+            ? 'process_group_helper.exe'
+            : 'process_group_helper',
       ),
     );
     expect(helper, contains(Abi.current().toString().replaceAll('_', '-')));

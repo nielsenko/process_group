@@ -1,4 +1,4 @@
-# leashed_process
+# process_group
 
 Starts a process on a leash, so that killing it ends every process it
 started.
@@ -10,7 +10,7 @@ SIGKILL orphans the child. `LeashedProcess.start` takes what `Process.start`
 takes and returns a `Process` whose `kill` reaches the whole tree.
 
 ```dart
-import 'package:leashed_process/leashed_process.dart';
+import 'package:process_group/process_group.dart';
 
 final process = await LeashedProcess.start('flutter', ['run', '--machine']);
 // ...
@@ -50,7 +50,7 @@ left behind.
 
 ## How
 
-A helper executable, `binary/<os>-<arch>/leashed_process_helper`, sits
+A helper executable, `binary/<os>-<arch>/process_group_helper`, sits
 between Dart and the command.
 
 - POSIX: it calls `setpgid(0, 0)`, or `setsid()` for a new session, and
@@ -156,7 +156,7 @@ target when it is missing.
 
 A program with no package root at run time, such as one built with
 `dart compile exe`, ships the helper itself and passes its path to
-`LeashedProcess.start` as `helperPath`. `LEASHED_PROCESS_HELPER` in the
+`LeashedProcess.start` as `helperPath`. `PROCESS_GROUP_HELPER` in the
 environment names the helper from outside the program.
 
 The helper's own exit codes follow the shell. It exits with 127 when the

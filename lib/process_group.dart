@@ -62,12 +62,12 @@ final class LeashedProcess implements Process {
   /// The environment variable that names the helper executable from
   /// outside a program with no package root at run time, such as one built
   /// with `dart compile exe`.
-  static const helperVariable = 'LEASHED_PROCESS_HELPER';
+  static const helperVariable = 'PROCESS_GROUP_HELPER';
 
   /// The path of the helper executable for this platform.
   ///
   /// [helperVariable] names it when set. Otherwise it is
-  /// `binary/<os>-<arch>/leashed_process_helper` under this package. A
+  /// `binary/<os>-<arch>/process_group_helper` under this package. A
   /// checkout has no `binary/` until `dart run zig_hook:build_binaries`
   /// has run.
   static Future<String> helper() async {
@@ -76,17 +76,17 @@ final class LeashedProcess implements Process {
     if (_helper case final found?) return found;
 
     final library = await Isolate.resolvePackageUri(
-      Uri.parse('package:leashed_process/leashed_process.dart'),
+      Uri.parse('package:process_group/process_group.dart'),
     );
     if (library == null) {
       throw LeashHelperMissing(
-        'package:leashed_process does not resolve to a directory, so its '
+        'package:process_group does not resolve to a directory, so its '
         'binary/ cannot be found. Pass helperPath to LeashedProcess.start, '
         'or set $helperVariable to the helper executable.',
       );
     }
     final directory = Abi.current().toString().replaceAll('_', '-');
-    const stem = 'leashed_process_helper';
+    const stem = 'process_group_helper';
     final name = Platform.isWindows ? '$stem.exe' : stem;
     final path = library.resolve('../binary/$directory/$name').toFilePath();
     if (!File(path).existsSync()) {

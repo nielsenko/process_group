@@ -4,7 +4,7 @@ const builtin = @import("builtin");
 const c = std.c;
 const linux = std.os.linux;
 
-const program = "leashed_process_helper";
+const program = "process_group_helper";
 
 /// errno comes from libc where it is linked, which is always the case on
 /// macOS, and from the raw syscalls on Linux otherwise.

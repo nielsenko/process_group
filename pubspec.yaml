@@ -1,4 +1,4 @@
-name: leashed_process
+name: process_group
 description: >-
   Starts a process on a leash, so that killing it ends every process it
   started. A process group holds them on POSIX and a job object on Windows.
@@ -15,4 +15,4 @@ dev_dependencies:
 
 zig_hook:
   artifact: executable
-  name: leashed_process_helper
+  name: process_group_helper

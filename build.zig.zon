@@ -1,7 +1,7 @@
 .{
-    .name = .leashed_process,
+    .name = .process_group,
     .version = "0.1.0",
-    .fingerprint = 0x13f6101817f6d17a,
+    .fingerprint = 0x3b9c6934b64f665f,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .zig_hook = .{ .path = "../zig_hook" },
