@@ -56,6 +56,16 @@ void main() {
     expect(await process.exitCode, 0);
   }, skip: Platform.isWindows ? 'On Windows the pid is the helper\'s.' : null);
 
+  test('the command runs when Dart starts the helper detached', () async {
+    final [executable, ...arguments] = shell(r'echo $$', '');
+    final process = await Leash.start(
+      executable,
+      arguments,
+      mode: ProcessStartMode.detachedWithStdio,
+    );
+    expect((await text(process.stdout)).trim(), '${process.pid}');
+  }, skip: Platform.isWindows ? 'On Windows the pid is the helper\'s.' : null);
+
   test('kill ends the command and the processes it started', () async {
     final [executable, ...arguments] = shell(
       'sleep 300 & sleep 300 & echo ready; wait',

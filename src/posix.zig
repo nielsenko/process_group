@@ -25,7 +25,15 @@ pub fn main(init: std.process.Init.Minimal) void {
     exec(std.mem.span(args[1]), nullTerminated(args[1..]), envp);
 }
 
+// libc declarations std.c leaves out.
+const libc = struct {
+    extern "c" fn getpgid(pid: c.pid_t) c.pid_t;
+};
+
 fn newProcessGroup() void {
+    // A group leader has its own group already. setpgid refuses one that
+    // leads a session too, which is how Dart 3.14 starts a detached process.
+    if (leadsProcessGroup()) return;
     const err = if (builtin.link_libc)
         c.errno(c.setpgid(0, 0))
     else
@@ -34,6 +42,11 @@ fn newProcessGroup() void {
         std.debug.print("leash: setpgid: {s}\n", .{@tagName(err)});
         std.process.exit(exit_os_error);
     }
+}
+
+fn leadsProcessGroup() bool {
+    if (builtin.link_libc) return libc.getpgid(0) == c.getpid();
+    return linux.getpgid(0) == @as(usize, @intCast(linux.getpid()));
 }
 
 fn nullTerminated(args: []const [*:0]const u8) [*:null]const ?[*:0]const u8 {
