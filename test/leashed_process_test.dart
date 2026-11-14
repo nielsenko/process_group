@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
-import 'package:leash/leash.dart';
+import 'package:leashed_process/leashed_process.dart';
 import 'package:test/test.dart';
 
 /// Pids of every process in the group [pgid], from `ps`, which BSD and
@@ -164,19 +164,21 @@ void main() {
   test(
     'the exit code, stdio, environment and directory pass through',
     () async {
-      final dir = await Directory.systemTemp.createTemp('leash_test_');
+      final dir = await Directory.systemTemp.createTemp(
+        'leashed_process_test_',
+      );
       addTearDown(() => dir.delete(recursive: true));
       final [executable, ...arguments] = shell(
-        r'read line; echo "$line $LEASH_TEST $(pwd)"; echo err >&2; exit 7',
+        r'read line; echo "$line $LEASHED_PROCESS_TEST $(pwd)"; echo err >&2; exit 7',
         r'$line = [Console]::In.ReadLine(); '
-            r'Write-Output ($line + " " + $env:LEASH_TEST + " " + (Get-Location).Path); '
+            r'Write-Output ($line + " " + $env:LEASHED_PROCESS_TEST + " " + (Get-Location).Path); '
             r"[Console]::Error.WriteLine('err'); exit 7",
       );
       final process = await Leash.start(
         executable,
         arguments,
         workingDirectory: dir.path,
-        environment: {'LEASH_TEST': 'env'},
+        environment: {'LEASHED_PROCESS_TEST': 'env'},
       );
       process.stdin.writeln('in');
       await process.stdin.close();
@@ -193,13 +195,13 @@ void main() {
   );
 
   test('a command that does not exist exits with 127', () async {
-    final process = await Leash.start('leash-no-such-command', []);
+    final process = await Leash.start('leashed-process-no-such-command', []);
     expect(await text(process.stderr), contains('leash:'));
     expect(await process.exitCode, 127);
   });
 
   test('a path that is not executable exits with 126', () async {
-    final dir = await Directory.systemTemp.createTemp('leash_test_');
+    final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
     addTearDown(() => dir.delete(recursive: true));
     final plain = File('${dir.path}/plain')..writeAsStringSync('');
     final process = await Leash.start(plain.path, []);
@@ -207,7 +209,7 @@ void main() {
   }, skip: Platform.isWindows ? 'Windows has no executable bit.' : null);
 
   test('helperPath names the helper to start', () async {
-    final dir = await Directory.systemTemp.createTemp('leash_test_');
+    final dir = await Directory.systemTemp.createTemp('leashed_process_test_');
     addTearDown(() => dir.delete(recursive: true));
     final name = Platform.isWindows ? 'copy.exe' : 'copy';
     final copy = await File(await Leash.helper()).copy('${dir.path}/$name');

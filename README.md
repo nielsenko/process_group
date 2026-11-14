@@ -1,4 +1,4 @@
-# leash
+# leashed_process
 
 Starts a process on a leash: killing it ends every process it started.
 
@@ -9,7 +9,7 @@ SIGKILL orphans the child. `Leash.start` takes what `Process.start` takes
 and returns a `Process` whose `kill` reaches the whole tree.
 
 ```dart
-import 'package:leash/leash.dart';
+import 'package:leashed_process/leashed_process.dart';
 
 final process = await Leash.start('flutter', ['run', '--machine']);
 // ...
@@ -85,7 +85,7 @@ target when it is missing.
 
 A program with no package root at run time, such as one built with
 `dart compile exe`, ships the helper itself and passes its path to
-`Leash.start` as `helperPath`. `LEASH_HELPER` in the environment names the
+`Leash.start` as `helperPath`. `LEASHED_PROCESS_HELPER` in the environment names the
 helper from outside the program.
 
 The helper's own exit codes follow the shell: 127 when the command is not

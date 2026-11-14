@@ -17,11 +17,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: leash
+        working-directory: leashed_process
     steps:
       - uses: actions/checkout@v4
         with:
-          path: leash
+          path: leashed_process
       # zig_hook is a path dependency of the pubspec and of build.zig.zon,
       # checked out beside the package. ZIG_HOOK_TOKEN is a token that can
       # read it while the repository is private.
@@ -33,7 +33,7 @@ jobs:
       - uses: dart-lang/setup-dart@v1
       - uses: ./zig_hook/.github/actions/setup-zig
         with:
-          zon: leash/build.zig.zon
+          zon: leashed_process/build.zig.zon
       - run: zig fmt --check build.zig src
       - run: zig test src/windows.zig
       - run: dart pub get
@@ -44,4 +44,4 @@ jobs:
       - if: matrix.os == 'ubuntu-latest'
         uses: ./zig_hook/.github/actions/prebuilt
         with:
-          package: leash
+          package: leashed_process

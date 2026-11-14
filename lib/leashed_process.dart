@@ -169,7 +169,7 @@ abstract final class Leash {
   /// The environment variable that names the helper executable from
   /// outside a program with no package root at run time, such as one built
   /// with `dart compile exe`.
-  static const helperVariable = 'LEASH_HELPER';
+  static const helperVariable = 'LEASHED_PROCESS_HELPER';
 
   /// The helper executable for this platform: [helperVariable] when set,
   /// else `binary/<os>-<arch>/leash` under this package.
@@ -182,11 +182,11 @@ abstract final class Leash {
     if (_helper case final found?) return found;
 
     final library = await Isolate.resolvePackageUri(
-      Uri.parse('package:leash/leash.dart'),
+      Uri.parse('package:leashed_process/leashed_process.dart'),
     );
     if (library == null) {
       throw LeashHelperMissing(
-        'package:leash does not resolve to a directory, so its binary/ '
+        'package:leashed_process does not resolve to a directory, so its binary/ '
         'cannot be found. Pass helperPath to Leash.start, or set '
         '$helperVariable to the leash executable.',
       );
