@@ -26,7 +26,7 @@ Future<bool> windowsProcessExists(int pid) async {
 final spaces = RegExp(r'\s+');
 
 /// Waits up to two seconds for [group] to empty.
-Future<void> emptied(LeashGroup group) async {
+Future<void> emptied(ProcessGroup group) async {
   final waited = Stopwatch()..start();
   while (group.exists && waited.elapsed < const Duration(seconds: 2)) {
     await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -45,8 +45,8 @@ List<String> shell(String posix, String windows) => Platform.isWindows
 void main() {
   setUpAll(() async {
     try {
-      await LeashedProcess.helper();
-    } on LeashHelperMissing {
+      await GroupedProcess.helper();
+    } on ProcessGroupHelperMissing {
       final directory = Abi.current().toString().replaceAll('_', '-');
       final result = await Process.run(Platform.resolvedExecutable, [
         'run',
@@ -61,7 +61,7 @@ void main() {
 
   test('the command runs with its own pid as the process group', () async {
     final [executable, ...arguments] = shell(r'echo $$', '');
-    final process = await LeashedProcess.start(executable, arguments);
+    final process = await GroupedProcess.start(executable, arguments);
     expect((await text(process.stdout)).trim(), '${process.pid}');
     expect(await process.exitCode, 0);
   }, skip: Platform.isWindows ? 'On Windows the pid is the helper\'s.' : null);
@@ -69,12 +69,12 @@ void main() {
   test('with newSession the command leads a session of its own', () async {
     // In the state `ps` prints, a lower case s marks a session leader.
     final [executable, ...arguments] = shell(r'ps -o pgid=,stat= -p $$', '');
-    final grouped = await LeashedProcess.start(executable, arguments);
+    final grouped = await GroupedProcess.start(executable, arguments);
     final [group, state] = (await text(grouped.stdout)).trim().split(spaces);
     expect(group, '${grouped.pid}');
     expect(state, isNot(contains('s')));
 
-    final own = await LeashedProcess.start(
+    final own = await GroupedProcess.start(
       executable,
       arguments,
       newSession: true,
@@ -86,7 +86,7 @@ void main() {
 
   test('the command runs when Dart starts the helper detached', () async {
     final [executable, ...arguments] = shell(r'echo $$', '');
-    final process = await LeashedProcess.start(
+    final process = await GroupedProcess.start(
       executable,
       arguments,
       mode: ProcessStartMode.detachedWithStdio,
@@ -101,7 +101,7 @@ void main() {
           r'-PassThru -WindowStyle Hidden; Write-Output $p.Id; '
           r'Wait-Process -Id $p.Id',
     );
-    final process = await LeashedProcess.start(executable, arguments);
+    final process = await GroupedProcess.start(executable, arguments);
     final first = utf8.decode(await process.stdout.first).trim();
     if (Platform.isWindows) {
       final child = int.parse(first);
@@ -121,7 +121,7 @@ void main() {
   });
 
   test('killCommand leaves what the command started running', () async {
-    final process = await LeashedProcess.start('sh', [
+    final process = await GroupedProcess.start('sh', [
       '-c',
       'sleep 300 & echo ready; wait',
     ]);
@@ -136,14 +136,14 @@ void main() {
     expect(group.exists, isFalse);
   }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
 
-  test('LeashGroup refuses an id whose signal would go elsewhere', () {
+  test('ProcessGroup refuses an id whose signal would go elsewhere', () {
     for (final id in [1, 0, -7]) {
-      expect(() => LeashGroup(id), throwsArgumentError, reason: '$id');
+      expect(() => ProcessGroup(id), throwsArgumentError, reason: '$id');
     }
   });
 
   test('the group outlives the command until it is stopped', () async {
-    final process = await LeashedProcess.start('sh', [
+    final process = await GroupedProcess.start('sh', [
       '-c',
       'sleep 300 & echo ready',
     ]);
@@ -159,7 +159,7 @@ void main() {
   }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
 
   test('stop kills what ignores SIGTERM once the grace is over', () async {
-    final process = await LeashedProcess.start('sh', [
+    final process = await GroupedProcess.start('sh', [
       '-c',
       'trap "" TERM; sleep 300 & echo ready; wait',
     ]);
@@ -185,7 +185,7 @@ void main() {
             r'Write-Output ($line + " " + $env:PROCESS_GROUP_TEST + " " + (Get-Location).Path); '
             r"[Console]::Error.WriteLine('err'); exit 7",
       );
-      final process = await LeashedProcess.start(
+      final process = await GroupedProcess.start(
         executable,
         arguments,
         workingDirectory: dir.path,
@@ -211,7 +211,7 @@ void main() {
     final tool = File('${dir.path}/process-group-test-tool')
       ..writeAsStringSync('#!/bin/sh\necho found\n');
     await Process.run('chmod', ['+x', tool.path]);
-    final process = await LeashedProcess.start(
+    final process = await GroupedProcess.start(
       'process-group-test-tool',
       [],
       environment: {'PATH': '${dir.path}:${Platform.environment['PATH']}'},
@@ -221,7 +221,7 @@ void main() {
   }, skip: Platform.isWindows ? 'The tool is a shell script.' : null);
 
   test('a command that does not exist exits with 127', () async {
-    final process = await LeashedProcess.start(
+    final process = await GroupedProcess.start(
       'process-group-no-such-command',
       [],
     );
@@ -233,7 +233,7 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('process_group_test_');
     addTearDown(() => dir.delete(recursive: true));
     final plain = File('${dir.path}/plain')..writeAsStringSync('');
-    final process = await LeashedProcess.start(plain.path, []);
+    final process = await GroupedProcess.start(plain.path, []);
     expect(await process.exitCode, 126);
   }, skip: Platform.isWindows ? 'Windows has no executable bit.' : null);
 
@@ -241,10 +241,10 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('process_group_test_');
     addTearDown(() => dir.delete(recursive: true));
     final name = Platform.isWindows ? 'copy.exe' : 'copy';
-    final copy = await File(await LeashedProcess.helper())
+    final copy = await File(await GroupedProcess.helper())
         .copy('${dir.path}/$name');
     final [executable, ...arguments] = shell('echo out', "Write-Output 'out'");
-    final process = await LeashedProcess.start(
+    final process = await GroupedProcess.start(
       executable,
       arguments,
       helperPath: copy.path,
@@ -254,7 +254,7 @@ void main() {
 
     final missing = '${dir.path}/missing';
     await expectLater(
-      LeashedProcess.start(executable, arguments, helperPath: missing),
+      GroupedProcess.start(executable, arguments, helperPath: missing),
       throwsA(
         isA<ProcessException>().having(
           (e) => e.executable,
@@ -266,7 +266,7 @@ void main() {
   });
 
   test('the helper is found under binary/ for this platform', () async {
-    final helper = await LeashedProcess.helper();
+    final helper = await GroupedProcess.helper();
     expect(
       helper,
       endsWith(

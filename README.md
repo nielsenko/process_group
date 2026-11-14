@@ -6,18 +6,18 @@ started.
 `Process.kill` reaches one process. When that process is a wrapper, such as
 a shell script or a version manager's launcher, the program behind it keeps
 running. `bash` holds a SIGINT it received alone until its child exits, and
-SIGKILL orphans the child. `LeashedProcess.start` takes what `Process.start`
+SIGKILL orphans the child. `GroupedProcess.start` takes what `Process.start`
 takes and returns a `Process` whose `kill` reaches the whole tree.
 
 ```dart
 import 'package:process_group/process_group.dart';
 
-final process = await LeashedProcess.start('flutter', ['run', '--machine']);
+final process = await GroupedProcess.start('flutter', ['run', '--machine']);
 // ...
 process.kill(); // flutter, and everything it started
 ```
 
-`LeashedProcess.start` has `Process.start`'s parameters except
+`GroupedProcess.start` has `Process.start`'s parameters except
 `runInShell`. The helper looks the command up on PATH itself, and a shell
 would only add a process to the tree. The result implements `Process`. On
 POSIX `pid` is the command's own.
@@ -34,7 +34,7 @@ On POSIX the process group outlives the command for as long as a process
 it started is still in it. `process.group` is that group:
 
 ```dart
-final process = await LeashedProcess.start('dart', ['test']);
+final process = await GroupedProcess.start('dart', ['test']);
 final code = await process.exitCode;
 // A server that a test started and never stopped is still running.
 await process.group?.stop(); // SIGTERM, then SIGKILL after two seconds
@@ -117,7 +117,7 @@ one. Each stays in the process table as a zombie until the Dart program
 exits, and `kill(pid, 0)` keeps reporting it alive. A program that starts
 many short-lived detached children collects one zombie for each.
 
-`LeashedProcess.start` needs no detached mode. In the normal mode the
+`GroupedProcess.start` needs no detached mode. In the normal mode the
 command leads its group on every Dart version, Dart collects it when it
 exits, and `exitCode` works. `newSession: true` adds the session a detached
 start gave. One thing differs from a detached start. Dart stays alive while
@@ -139,7 +139,7 @@ on the child's `PATH`:
 | Started with           | Dart 3.13.7 | Dart 3.14.0               |
 | ---------------------- | ----------- | ------------------------- |
 | `Process.start`        | found       | No such file or directory |
-| `LeashedProcess.start` | found       | found                     |
+| `GroupedProcess.start` | found       | found                     |
 
 The helper is started by its full path, and it looks the command up itself
 on the `PATH` it was given. So a leashed command is found on the `PATH` of
@@ -156,7 +156,7 @@ target when it is missing.
 
 A program with no package root at run time, such as one built with
 `dart compile exe`, ships the helper itself and passes its path to
-`LeashedProcess.start` as `helperPath`. `PROCESS_GROUP_HELPER` in the
+`GroupedProcess.start` as `helperPath`. `PROCESS_GROUP_HELPER` in the
 environment names the helper from outside the program.
 
 The helper's own exit codes follow the shell. It exits with 127 when the

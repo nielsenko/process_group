@@ -1,6 +1,6 @@
 /// Processes on a leash, where killing one ends every process it started.
 ///
-/// [LeashedProcess.start] takes what [Process.start] takes and returns a
+/// [GroupedProcess.start] takes what [Process.start] takes and returns a
 /// [Process] whose [Process.kill] reaches the whole tree. A small helper
 /// executable, shipped under `binary/` per platform, does the work. On
 /// POSIX it moves into a new process group and becomes the command. On
@@ -13,9 +13,9 @@ import 'dart:isolate';
 
 /// A process that [start] put on a leash, so that [kill] reaches every
 /// process it started.
-final class LeashedProcess implements Process {
-  LeashedProcess._(this._process)
-    : group = Platform.isWindows ? null : LeashGroup(_process.pid);
+final class GroupedProcess implements Process {
+  GroupedProcess._(this._process)
+    : group = Platform.isWindows ? null : ProcessGroup(_process.pid);
 
   /// Starts [executable] with [arguments] on a leash.
   ///
@@ -32,9 +32,9 @@ final class LeashedProcess implements Process {
   /// [helperPath] names the helper executable to start, in place of the
   /// one [helper] finds. A program that ships its own copy passes it.
   ///
-  /// Throws [LeashHelperMissing] when the helper for this platform is not
-  /// available, see [helper].
-  static Future<LeashedProcess> start(
+  /// Throws [ProcessGroupHelperMissing] when the helper for this platform
+  /// is not available, see [helper].
+  static Future<GroupedProcess> start(
     String executable,
     List<String> arguments, {
     String? workingDirectory,
@@ -56,7 +56,7 @@ final class LeashedProcess implements Process {
       includeParentEnvironment: includeParentEnvironment,
       mode: mode,
     );
-    return LeashedProcess._(process);
+    return GroupedProcess._(process);
   }
 
   /// The environment variable that names the helper executable from
@@ -79,9 +79,9 @@ final class LeashedProcess implements Process {
       Uri.parse('package:process_group/process_group.dart'),
     );
     if (library == null) {
-      throw LeashHelperMissing(
+      throw ProcessGroupHelperMissing(
         'package:process_group does not resolve to a directory, so its '
-        'binary/ cannot be found. Pass helperPath to LeashedProcess.start, '
+        'binary/ cannot be found. Pass helperPath to GroupedProcess.start, '
         'or set $helperVariable to the helper executable.',
       );
     }
@@ -90,10 +90,10 @@ final class LeashedProcess implements Process {
     final name = Platform.isWindows ? '$stem.exe' : stem;
     final path = library.resolve('../binary/$directory/$name').toFilePath();
     if (!File(path).existsSync()) {
-      throw LeashHelperMissing(
+      throw ProcessGroupHelperMissing(
         'No helper for $directory at $path. In a checkout, run '
         '`dart run zig_hook:build_binaries $directory`. Otherwise pass '
-        'helperPath to LeashedProcess.start, or set $helperVariable to '
+        'helperPath to GroupedProcess.start, or set $helperVariable to '
         'the helper executable.',
       );
     }
@@ -109,7 +109,7 @@ final class LeashedProcess implements Process {
   ///
   /// Null on Windows, where the job ends with its command and nothing is
   /// left behind.
-  final LeashGroup? group;
+  final ProcessGroup? group;
 
   /// The pid of the command, which is also its process group id.
   ///
@@ -159,13 +159,13 @@ final class LeashedProcess implements Process {
 /// POSIX only. The group outlives the command for as long as one process
 /// is left in it, so a caller can let those processes run on and [stop]
 /// them later.
-final class LeashGroup {
+final class ProcessGroup {
   /// The group with the process group id [id].
   ///
   /// Throws an [ArgumentError] when [id] is below 2. A signal to group 0
   /// goes to the caller's own group, and one to group 1 goes to every
   /// process the caller may signal.
-  LeashGroup(this.id) {
+  ProcessGroup(this.id) {
     if (id < 2) {
       throw ArgumentError.value(id, 'id', 'No command leads this group');
     }
@@ -212,10 +212,10 @@ final _kill = DynamicLibrary.process()
       'kill',
     );
 
-/// The exception [LeashedProcess.start] throws when it finds no helper
+/// The exception [GroupedProcess.start] throws when it finds no helper
 /// for this platform.
-final class LeashHelperMissing implements Exception {
-  LeashHelperMissing(this.message);
+final class ProcessGroupHelperMissing implements Exception {
+  ProcessGroupHelperMissing(this.message);
 
   final String message;
 
