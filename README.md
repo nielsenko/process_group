@@ -64,7 +64,9 @@ riscv64 Linux. A checkout builds every target with
 target when it is missing.
 
 A program with no package root at run time, such as one built with
-`dart compile exe`, sets `LEASH_HELPER` to the executable's path.
+`dart compile exe`, ships the helper itself and passes its path to
+`Leash.start` as `helperPath`. `LEASH_HELPER` in the environment names the
+helper from outside the program.
 
 The helper's own exit codes follow the shell: 127 when the command is not
 found, 126 when it cannot run, 64 for a missing command, 71 for an OS

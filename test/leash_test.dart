@@ -153,6 +153,33 @@ void main() {
     expect(await process.exitCode, 126);
   }, skip: Platform.isWindows ? 'Windows has no executable bit.' : null);
 
+  test('helperPath names the helper to start', () async {
+    final dir = await Directory.systemTemp.createTemp('leash_test_');
+    addTearDown(() => dir.delete(recursive: true));
+    final name = Platform.isWindows ? 'copy.exe' : 'copy';
+    final copy = await File(await Leash.helper()).copy('${dir.path}/$name');
+    final [executable, ...arguments] = shell('echo out', "Write-Output 'out'");
+    final process = await Leash.start(
+      executable,
+      arguments,
+      helperPath: copy.path,
+    );
+    expect((await text(process.stdout)).trim(), 'out');
+    expect(await process.exitCode, 0);
+
+    final missing = '${dir.path}/missing';
+    await expectLater(
+      Leash.start(executable, arguments, helperPath: missing),
+      throwsA(
+        isA<ProcessException>().having(
+          (e) => e.executable,
+          'executable',
+          missing,
+        ),
+      ),
+    );
+  });
+
   test('the helper is found under binary/ for this platform', () async {
     final helper = await Leash.helper();
     expect(helper, endsWith(Platform.isWindows ? 'leash.exe' : 'leash'));

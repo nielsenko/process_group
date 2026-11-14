@@ -71,6 +71,9 @@ abstract final class Leash {
   /// what it starts can open `/dev/tty`, to prompt on it or to draw on it.
   /// Windows has no such session, and [newSession] does nothing there.
   ///
+  /// [helperPath] names the helper executable to start, in place of the
+  /// one [helper] finds. A program that ships its own copy passes it.
+  ///
   /// Throws [LeashHelperMissing] when the helper for this platform is not
   /// available, see [helper].
   static Future<LeashedProcess> start(
@@ -81,9 +84,10 @@ abstract final class Leash {
     bool includeParentEnvironment = true,
     ProcessStartMode mode = ProcessStartMode.normal,
     bool newSession = false,
+    String? helperPath,
   }) async {
     final process = await Process.start(
-      await helper(),
+      helperPath ?? await helper(),
       [
         if (newSession && !Platform.isWindows) '--session',
         executable,
@@ -97,9 +101,9 @@ abstract final class Leash {
     return LeashedProcess._(process);
   }
 
-  /// Names the helper executable in the environment, for a program that
-  /// has no package root at run time, such as one built with
-  /// `dart compile exe`.
+  /// The environment variable that names the helper executable from
+  /// outside a program with no package root at run time, such as one built
+  /// with `dart compile exe`.
   static const helperVariable = 'LEASH_HELPER';
 
   /// The helper executable for this platform: [helperVariable] when set,
@@ -118,7 +122,8 @@ abstract final class Leash {
     if (library == null) {
       throw LeashHelperMissing(
         'package:leash does not resolve to a directory, so its binary/ '
-        'cannot be found. Set $helperVariable to the leash executable.',
+        'cannot be found. Pass helperPath to Leash.start, or set '
+        '$helperVariable to the leash executable.',
       );
     }
     final directory = Abi.current().toString().replaceAll('_', '-');
@@ -127,8 +132,9 @@ abstract final class Leash {
     if (!File(path).existsSync()) {
       throw LeashHelperMissing(
         'No leash helper for $directory at $path. In a checkout, run '
-        '`dart run zig_hook:build_binaries $directory`. Otherwise set '
-        '$helperVariable to the leash executable.',
+        '`dart run zig_hook:build_binaries $directory`. Otherwise pass '
+        'helperPath to Leash.start, or set $helperVariable to the leash '
+        'executable.',
       );
     }
     return _helper = path;
