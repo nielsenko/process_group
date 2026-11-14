@@ -154,7 +154,15 @@ final class LeashedProcess implements Process {
 /// them later.
 final class LeashGroup {
   /// The group with the process group id [id].
-  LeashGroup(this.id);
+  ///
+  /// Throws an [ArgumentError] when [id] is below 2. A signal to group 0
+  /// goes to the caller's own group, and one to group 1 goes to every
+  /// process the caller may signal.
+  LeashGroup(this.id) {
+    if (id < 2) {
+      throw ArgumentError.value(id, 'id', 'No command leads this group');
+    }
+  }
 
   /// The process group id, which is the pid of the command that leads the
   /// group.

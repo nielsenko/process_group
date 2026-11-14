@@ -136,6 +136,12 @@ void main() {
     expect(group.exists, isFalse);
   }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
 
+  test('LeashGroup refuses an id whose signal would go elsewhere', () {
+    for (final id in [1, 0, -7]) {
+      expect(() => LeashGroup(id), throwsArgumentError, reason: '$id');
+    }
+  });
+
   test('the group outlives the command until it is stopped', () async {
     final process = await LeashedProcess.start('sh', [
       '-c',
