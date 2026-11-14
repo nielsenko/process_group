@@ -1,7 +1,7 @@
 # process_group
 
-Starts a process on a leash, so that killing it ends every process it
-started.
+Starts a process in a process group of its own, so that killing it ends
+every process it started.
 
 `Process.kill` reaches one process. When that process is a wrapper, such as
 a shell script or a version manager's launcher, the program behind it keeps
@@ -72,7 +72,7 @@ between Dart and the command.
   terminal. A background process group that tries is stopped.
 - A process that leaves on its own is not reached. On POSIX a process
   leaves by calling `setsid` or `setpgid`. A daemon does that, and so does
-  anything the leashed command starts through this package. On Windows a
+  anything the command starts through this package. On Windows a
   process leaves when it is started with `CREATE_BREAKAWAY_FROM_JOB`, which
   the job allows.
 - On Windows `pid` is the helper's, and the exit code is forwarded.
@@ -142,8 +142,8 @@ on the child's `PATH`:
 | `GroupedProcess.start` | found       | found                     |
 
 The helper is started by its full path, and it looks the command up itself
-on the `PATH` it was given. So a leashed command is found on the `PATH` of
-its own environment on every platform and Dart version.
+on the `PATH` it was given. So the command is found on the `PATH` of its
+own environment on every platform and Dart version.
 
 ## The helper
 

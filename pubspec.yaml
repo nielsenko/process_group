@@ -1,7 +1,7 @@
 name: process_group
 description: >-
-  Starts a process on a leash, so that killing it ends every process it
-  started. A process group holds them on POSIX and a job object on Windows.
+  Starts a process in a process group of its own, so that killing it ends
+  every process it started. A job object does the same on Windows.
 version: 0.1.0
 
 environment:

@@ -1,4 +1,5 @@
-/// Processes on a leash, where killing one ends every process it started.
+/// Processes in a process group of their own, where killing one ends
+/// every process it started.
 ///
 /// [GroupedProcess.start] takes what [Process.start] takes and returns a
 /// [Process] whose [Process.kill] reaches the whole tree. A small helper
@@ -11,13 +12,13 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
-/// A process that [start] put on a leash, so that [kill] reaches every
-/// process it started.
+/// A process that [start] put in a process group of its own, so that
+/// [kill] reaches every process it started.
 final class GroupedProcess implements Process {
   GroupedProcess._(this._process)
     : group = Platform.isWindows ? null : ProcessGroup(_process.pid);
 
-  /// Starts [executable] with [arguments] on a leash.
+  /// Starts [executable] with [arguments] in a process group of its own.
   ///
   /// The parameters are those of [Process.start] without `runInShell`.
   /// The helper looks [executable] up on PATH itself, and a shell would
@@ -153,8 +154,8 @@ final class GroupedProcess implements Process {
       _process.kill(signal);
 }
 
-/// The process group of a leashed command, which holds the command and
-/// every process it started that has not left the group.
+/// The process group of a command, which holds the command and every
+/// process it started that has not left the group.
 ///
 /// POSIX only. The group outlives the command for as long as one process
 /// is left in it, so a caller can let those processes run on and [stop]
