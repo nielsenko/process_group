@@ -38,7 +38,8 @@ const libc = struct {
 
 fn newProcessGroup() void {
     // A group leader has its own group already. setpgid refuses one that
-    // leads a session too, which is how Dart 3.14 starts a detached process.
+    // leads a session too, as the helper does when Dart 3.14 starts it
+    // detached on macOS.
     if (leadsProcessGroup()) return;
     const err = if (builtin.link_libc)
         c.errno(c.setpgid(0, 0))
@@ -54,7 +55,8 @@ fn newProcessGroup() void {
 /// A session made here has no controlling terminal. One this process led
 /// already keeps the terminal it has.
 fn newSession() void {
-    // Dart 3.14 starts a detached process as a session leader.
+    // setsid refuses a group leader. The helper is one, and a session
+    // leader with it, when Dart 3.14 starts it detached on macOS.
     if (leadsSession()) return;
     const err = if (builtin.link_libc)
         c.errno(c.setsid())
@@ -89,7 +91,7 @@ fn nullTerminated(args: []const [*:0]const u8) [*:null]const ?[*:0]const u8 {
     return argv.ptr;
 }
 
-/// Becomes [command], found on PATH unless it names a path, as execvp
+/// Becomes `command`, found on PATH unless it names a path, as execvp
 /// would. Returns only by exiting, with the shell's codes for a command
 /// that is missing or cannot run.
 fn exec(

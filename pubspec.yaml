@@ -1,7 +1,7 @@
 name: leashed_process
 description: >-
-  Starts a process on a leash: killing it ends every process it started, on
-  POSIX through a process group and on Windows through a job object.
+  Starts a process on a leash, so that killing it ends every process it
+  started. A process group holds them on POSIX and a job object on Windows.
 version: 0.1.0
 
 environment:

@@ -93,9 +93,10 @@ pub fn main(init: std.process.Init.Minimal) void {
 
     const job = CreateJobObjectW(null, null) orelse fail("CreateJobObject");
     var limits = std.mem.zeroes(JOBOBJECT_EXTENDED_LIMIT_INFORMATION);
-    // Kill on close takes the tree with the helper. Breakaway lets a process
-    // that asks for CREATE_BREAKAWAY_FROM_JOB leave, as setsid does on
-    // POSIX, where it would otherwise fail to start.
+    // Kill on close takes the tree with the helper. Without breakaway a
+    // process that asks for CREATE_BREAKAWAY_FROM_JOB fails to start. With
+    // it the process leaves the job, as one that calls setsid leaves the
+    // group on POSIX.
     limits.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
     if (!succeeded(SetInformationJobObject(

@@ -36,8 +36,8 @@ Future<void> emptied(LeashGroup group) async {
 Future<String> text(Stream<List<int>> stream) =>
     stream.transform(utf8.decoder).join();
 
-/// A command the host's shell runs: `sh -c` on POSIX, PowerShell on
-/// Windows.
+/// A command for the host's shell, which is `sh -c` on POSIX and
+/// PowerShell on Windows.
 List<String> shell(String posix, String windows) => Platform.isWindows
     ? ['powershell', '-NoProfile', '-Command', windows]
     : ['sh', '-c', posix];
