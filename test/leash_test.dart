@@ -25,6 +25,14 @@ Future<bool> windowsProcessExists(int pid) async {
 
 final spaces = RegExp(r'\s+');
 
+/// Waits up to two seconds for [group] to empty.
+Future<void> emptied(LeashGroup group) async {
+  final waited = Stopwatch()..start();
+  while (group.exists && waited.elapsed < const Duration(seconds: 2)) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+}
+
 Future<String> text(Stream<List<int>> stream) =>
     stream.transform(utf8.decoder).join();
 
@@ -107,6 +115,35 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     expect(await processGroup(process.pid), isEmpty);
   });
+
+  test('the group outlives the command until it is stopped', () async {
+    final process = await Leash.start('sh', ['-c', 'sleep 300 & echo ready']);
+    expect(await process.exitCode, 0);
+    final group = process.group!;
+    expect(group.id, process.pid);
+    expect(group.exists, isTrue);
+    expect(await processGroup(group.id), hasLength(1));
+
+    await group.stop();
+    expect(group.exists, isFalse);
+    expect(group.kill(), isFalse);
+  }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
+
+  test('stop kills what ignores SIGTERM once the grace is over', () async {
+    final process = await Leash.start('sh', [
+      '-c',
+      'trap "" TERM; sleep 300 & echo ready; wait',
+    ]);
+    await process.stdout.first;
+    final group = process.group!;
+    const grace = Duration(milliseconds: 300);
+    final waited = Stopwatch()..start();
+    await group.stop(grace: grace);
+    expect(waited.elapsed, greaterThanOrEqualTo(grace));
+    expect(await process.exitCode, -ProcessSignal.sigkill.signalNumber);
+    await emptied(group);
+    expect(group.exists, isFalse);
+  }, skip: Platform.isWindows ? 'On Windows there is no group.' : null);
 
   test(
     'the exit code, stdio, environment and directory pass through',

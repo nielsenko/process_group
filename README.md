@@ -27,6 +27,25 @@ cannot open `/dev/tty`, so a password prompt from `git` or `ssh` cannot
 draw over a terminal UI. Windows has no such session, and the flag does
 nothing there.
 
+## What the command leaves behind
+
+On POSIX the process group outlives the command for as long as a process
+it started is still in it. `process.group` is that group:
+
+```dart
+final process = await Leash.start('dart', ['test']);
+final code = await process.exitCode;
+// A server that a test started and never stopped is still running.
+await process.group?.stop(); // SIGTERM, then SIGKILL after two seconds
+```
+
+`group.exists` says whether a process is left in it. The system may hand
+the id of an empty group to a new process, so stop a group while it exists
+and then forget it.
+
+On Windows `group` is null. The job ends with its command, so nothing is
+left behind.
+
 ## How
 
 A helper executable, `binary/<os>-<arch>/leash`, sits between Dart and the

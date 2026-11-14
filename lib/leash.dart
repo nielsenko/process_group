@@ -7,15 +7,23 @@
 /// job object that dies with it.
 library;
 
-import 'dart:ffi' show Abi;
+import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
 /// A process started by [Leash.start].
 final class LeashedProcess implements Process {
-  LeashedProcess._(this._process);
+  LeashedProcess._(this._process)
+    : group = Platform.isWindows ? null : LeashGroup(_process.pid);
 
   final Process _process;
+
+  /// The process group of the command, which outlives the command for as
+  /// long as a process it started is left in it.
+  ///
+  /// Null on Windows, where the job ends with its command and nothing is
+  /// left behind.
+  final LeashGroup? group;
 
   /// On POSIX the command's own pid, which is also its process group id.
   /// On Windows the pid of the leash helper that owns the job object.
@@ -42,11 +50,60 @@ final class LeashedProcess implements Process {
   /// still in its process group. On Windows every signal terminates the
   /// job object and all of its processes.
   @override
-  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) {
-    if (Platform.isWindows) return _process.kill(signal);
-    return Process.killPid(-_process.pid, signal);
+  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) =>
+      group?.kill(signal) ?? _process.kill(signal);
+}
+
+/// The process group of a leashed command, which holds the command and
+/// every process it started that has not left the group.
+///
+/// POSIX only. The group outlives the command for as long as one process
+/// is left in it, so a caller can let those processes run on and [stop]
+/// them later.
+final class LeashGroup {
+  /// The group with the process group id [id].
+  LeashGroup(this.id);
+
+  /// The process group id, which is the pid of the command that leads the
+  /// group.
+  final int id;
+
+  /// Whether a process is left in this group.
+  ///
+  /// An empty group is gone, and the system may hand its id to a new
+  /// process. Forget a group that no longer exists, since a later [kill]
+  /// could reach a stranger. A group this process may not signal counts as
+  /// gone too.
+  bool get exists => _kill(-id, 0) == 0;
+
+  /// Sends [signal] to every process in this group.
+  ///
+  /// Returns false when no process is left in it.
+  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) =>
+      Process.killPid(-id, signal);
+
+  /// Sends SIGTERM to every process in this group, and SIGKILL to whatever
+  /// is left in it after [grace].
+  ///
+  /// The future completes when the group is empty or the SIGKILL is sent,
+  /// whichever comes first.
+  Future<void> stop({Duration grace = const Duration(seconds: 2)}) async {
+    if (!kill()) return;
+    final waited = Stopwatch()..start();
+    while (exists) {
+      if (waited.elapsed >= grace) {
+        kill(ProcessSignal.sigkill);
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
   }
 }
+
+final _kill = DynamicLibrary.process()
+    .lookupFunction<Int32 Function(Int32, Int32), int Function(int, int)>(
+      'kill',
+    );
 
 /// The leash helper for this platform cannot be found.
 final class LeashHelperMissing implements Exception {
