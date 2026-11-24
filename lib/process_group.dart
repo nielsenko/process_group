@@ -6,6 +6,10 @@
 /// executable, shipped under `binary/` per platform, does the work. On
 /// POSIX it moves into a new process group and becomes the command. On
 /// Windows it owns a job object that dies with it.
+///
+/// A program that is killed cannot stop what it started. With
+/// `stopWithParent` a second helper process, the keeper, stops the group
+/// once the program is gone.
 library;
 
 import 'dart:ffi';
@@ -30,6 +34,13 @@ final class GroupedProcess implements Process {
   /// what it starts can open `/dev/tty`, to prompt on it or to draw on it.
   /// Windows has no such session, and [newSession] does nothing there.
   ///
+  /// With [stopWithParent] the command's process group is stopped once
+  /// this program is gone, however it ends, as [ProcessGroup.stop] stops
+  /// it. A keeper process that outlives this program does that, started
+  /// with the first such command. A program that is killed cannot stop
+  /// what it started, and without the keeper those groups run on. On
+  /// Windows the flag does nothing.
+  ///
   /// [helperPath] names the helper executable to start, in place of the
   /// one [helper] finds. A program that ships its own copy passes it.
   ///
@@ -43,10 +54,15 @@ final class GroupedProcess implements Process {
     bool includeParentEnvironment = true,
     ProcessStartMode mode = ProcessStartMode.normal,
     bool newSession = false,
+    bool stopWithParent = false,
     String? helperPath,
   }) async {
+    final helper = helperPath ?? await GroupedProcess.helper();
+    final keeper = stopWithParent && !Platform.isWindows
+        ? await _Keeper.of(helper)
+        : null;
     final process = await Process.start(
-      helperPath ?? await helper(),
+      helper,
       [
         if (newSession && !Platform.isWindows) '--session',
         executable,
@@ -57,6 +73,7 @@ final class GroupedProcess implements Process {
       includeParentEnvironment: includeParentEnvironment,
       mode: mode,
     );
+    keeper?.add(process.pid);
     return GroupedProcess._(process);
   }
 
@@ -196,16 +213,74 @@ final class ProcessGroup {
   /// The future completes when the group is empty or the SIGKILL is sent,
   /// whichever comes first.
   Future<void> stop({Duration grace = const Duration(seconds: 2)}) async {
-    if (!kill()) return;
-    final waited = Stopwatch()..start();
-    while (exists) {
-      if (waited.elapsed >= grace) {
-        kill(ProcessSignal.sigkill);
-        return;
+    try {
+      if (!kill()) return;
+      final waited = Stopwatch()..start();
+      while (exists) {
+        if (waited.elapsed >= grace) {
+          kill(ProcessSignal.sigkill);
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       }
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+    } finally {
+      _Keeper._running?.forget(id);
     }
   }
+}
+
+/// The link to the keeper, a helper process that stops the process groups
+/// it is told of once this program is gone.
+///
+/// The link is a file. This program appends a line for each group and
+/// holds a lock on the file for as long as it lives. The system releases
+/// the lock however the program ends, and a free lock is what the keeper
+/// waits for.
+///
+/// A pipe to the keeper would say the same by closing, but one write to a
+/// child's stdin keeps a Dart program from ever exiting on its own.
+/// Measured on Dart 3.13.7 and 3.14.0.
+final class _Keeper {
+  _Keeper._(this._groups);
+
+  /// The keeper of this isolate, which the first call starts.
+  static Future<_Keeper> of(String helper) => _started ??= _start(helper);
+
+  static Future<_Keeper>? _started;
+
+  /// The keeper once it runs.
+  static _Keeper? _running;
+
+  static Future<_Keeper> _start(String helper) async {
+    try {
+      final directory = Directory.systemTemp.createTempSync('process_group_');
+      final path = '${directory.path}/groups';
+      // Locked before the keeper starts, since the keeper takes a free
+      // lock to mean that this program is gone.
+      final groups = File(path).openSync(mode: FileMode.writeOnlyAppend)
+        ..lockSync(FileLock.exclusive);
+      // Detached, because Dart stays alive while a child it started in
+      // the normal mode runs, and the keeper runs until Dart is gone.
+      await Process.start(helper, [
+        '--keeper',
+        path,
+      ], mode: ProcessStartMode.detached);
+      return _running = _Keeper._(groups);
+    } on Object {
+      _started = null;
+      rethrow;
+    }
+  }
+
+  /// The file the keeper reads, held open and locked by this program.
+  final RandomAccessFile _groups;
+
+  /// Has the keeper stop [group] once this program is gone.
+  void add(int group) => _groups.writeStringSync('+$group\n');
+
+  /// Tells the keeper that [group] is stopped, so that it does not signal
+  /// a process that got the id afterwards.
+  void forget(int group) => _groups.writeStringSync('-$group\n');
 }
 
 final _kill = DynamicLibrary.process()

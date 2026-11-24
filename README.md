@@ -48,6 +48,34 @@ group while it exists and then forget it.
 On Windows `group` is null. The job ends with its command, so nothing is
 left behind.
 
+## When the program itself is killed
+
+`group.stop()` needs a program that is still there to call it. One that is
+killed with SIGKILL, or that crashes, stops nothing, and every group it
+started runs on. `stopWithParent: true` covers that:
+
+```dart
+final process = await GroupedProcess.start(
+  'dart',
+  ['test'],
+  stopWithParent: true,
+);
+```
+
+The first such start also starts a keeper, which is the helper in a second
+mode. The program appends the id of each group to a file, and it holds a
+lock on that file for as long as it lives. The system releases the lock
+however the program ends. The keeper then stops every group the file
+names, with SIGTERM and with SIGKILL two seconds later, removes the file
+and exits. A program that ends normally has its groups stopped the same
+way.
+
+`group.stop()` strikes its group from the file. The keeper also looks once
+a second for groups that emptied and forgets them.
+
+On Windows the flag does nothing, and a command outlives a program that is
+killed.
+
 ## How
 
 A helper executable, `binary/<os>-<arch>/process_group_helper`, sits
@@ -76,6 +104,15 @@ between Dart and the command.
   process leaves when it is started with `CREATE_BREAKAWAY_FROM_JOB`, which
   the job allows.
 - On Windows `pid` is the helper's, and the exit code is forwarded.
+- With `stopWithParent` one more process runs beside the program. It
+  sleeps, apart from five looks a second at the lock.
+- The keeper holds ids from outside the groups. When a group empties and
+  the system gives its id to a new group before the keeper's next look,
+  the keeper takes the new group for the old one and stops it with the
+  rest. Pids are handed out in sequence, so that takes a full turn of
+  the counter within a second.
+- A program that is killed between starting a command and writing its
+  group to the file leaves that one group running.
 
 ## What Dart 3.14 changed on macOS
 
@@ -162,3 +199,6 @@ environment names the helper from outside the program.
 The helper's own exit codes follow the shell. It exits with 127 when the
 command is not found, 126 when it cannot run, 64 for a missing command and
 71 for an OS error before the command started.
+
+`process_group_helper --keeper <file>` is the keeper. It exits with 0 once
+the groups are stopped, and with 71 when it cannot open or lock the file.

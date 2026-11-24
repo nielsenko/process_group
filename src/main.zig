@@ -7,6 +7,11 @@
 //! --session it starts a session instead, which also leaves the command
 //! without a controlling terminal.
 //!
+//! With --keeper <file> it is a keeper instead, on POSIX only. A program
+//! appends the ids of process groups to the file and holds a lock on it.
+//! The keeper waits for that lock to be free, which says the program is
+//! gone, then stops every group the file names and removes the file.
+//!
 //! On Windows it creates a job object that ends its processes when its last
 //! handle closes, starts the command suspended inside it, resumes it and
 //! waits, exiting with the command's exit code. Terminating the helper
