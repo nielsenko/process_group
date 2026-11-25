@@ -78,35 +78,59 @@ final class GroupedProcess implements Process {
   }
 
   /// The environment variable that names the helper executable from
-  /// outside a program with no package root at run time, such as one built
-  /// with `dart compile exe`.
+  /// outside the program.
+  ///
+  /// [helper] reads it before it looks anywhere.
   static const helperVariable = 'PROCESS_GROUP_HELPER';
 
   /// The path of the helper executable for this platform.
   ///
-  /// [helperVariable] names it when set. Otherwise it is
-  /// `binary/<os>-<arch>/process_group_helper` under this package. A
-  /// checkout has no `binary/` until `dart run zig_hook:build_binaries`
-  /// has run.
+  /// [helperVariable] names it when set. Otherwise it is the helper in the
+  /// directory of the running program, when one is there. That directory
+  /// has its links resolved, so a program started through a link, or by
+  /// its name on PATH, finds the helper too. The build of a compiled
+  /// program puts the helper there with
+  /// `dart run process_group:copy_helper`, since such a program has no
+  /// package root to count on. Otherwise it is [packagedHelper].
   static Future<String> helper() async {
     final override = Platform.environment[helperVariable];
     if (override != null) return override;
     if (_helper case final found?) return found;
 
+    final beside = File(Platform.resolvedExecutable).parent.uri
+        .resolve(_helperName)
+        .toFilePath();
+    return _helper = File(beside).existsSync()
+        ? beside
+        : await packagedHelper();
+  }
+
+  /// The path of the helper executable that this package ships for this
+  /// platform, `binary/<os>-<arch>/process_group_helper` under its root.
+  ///
+  /// A checkout has no `binary/` until `dart run zig_hook:build_binaries`
+  /// has run.
+  ///
+  /// Throws [ProcessGroupHelperMissing] when this package does not resolve
+  /// to a directory, or holds no helper for this platform.
+  static Future<String> packagedHelper() async {
     final library = await Isolate.resolvePackageUri(
       Uri.parse('package:process_group/process_group.dart'),
     );
     if (library == null) {
       throw ProcessGroupHelperMissing(
         'package:process_group does not resolve to a directory, so its '
-        'binary/ cannot be found. Pass helperPath to GroupedProcess.start, '
-        'or set $helperVariable to the helper executable.',
+        'binary/ cannot be found. For a compiled program, run '
+        '`dart run process_group:copy_helper <directory>` with the '
+        'directory of the program. Otherwise pass helperPath to '
+        'GroupedProcess.start, or set $helperVariable to the helper '
+        'executable.',
       );
     }
     final directory = Abi.current().toString().replaceAll('_', '-');
-    const stem = 'process_group_helper';
-    final name = Platform.isWindows ? '$stem.exe' : stem;
-    final path = library.resolve('../binary/$directory/$name').toFilePath();
+    final path = library
+        .resolve('../binary/$directory/$_helperName')
+        .toFilePath();
     if (!File(path).existsSync()) {
       throw ProcessGroupHelperMissing(
         'No helper for $directory at $path. In a checkout, run '
@@ -115,8 +139,12 @@ final class GroupedProcess implements Process {
         'the helper executable.',
       );
     }
-    return _helper = path;
+    return path;
   }
+
+  static final _helperName = Platform.isWindows
+      ? 'process_group_helper.exe'
+      : 'process_group_helper';
 
   static String? _helper;
 

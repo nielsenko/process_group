@@ -416,4 +416,105 @@ void main() {
     );
     expect(helper, contains(Abi.current().toString().replaceAll('_', '-')));
   });
+
+  group('a compiled program', () {
+    late Directory directory;
+    late String program;
+
+    /// Runs [executable] without the variable that would name a helper.
+    Future<ProcessResult> run(String executable) => Process.run(
+      executable,
+      [],
+      environment: {...Platform.environment}
+        ..remove(GroupedProcess.helperVariable),
+      includeParentEnvironment: false,
+    );
+
+    setUpAll(() async {
+      directory = await Directory.systemTemp.createTemp('process_group_test_');
+      final name = Platform.isWindows ? 'prints_helper.exe' : 'prints_helper';
+      program = directory.uri.resolve(name).toFilePath();
+      final compiled = await Process.run(Platform.resolvedExecutable, [
+        'compile',
+        'exe',
+        'test/helpers/prints_helper.dart',
+        '-o',
+        program,
+      ]);
+      if (compiled.exitCode != 0) {
+        fail('Compiling failed:\n${compiled.stdout}${compiled.stderr}');
+      }
+    });
+
+    tearDownAll(() => directory.delete(recursive: true));
+
+    /// Runs `copy_helper` on [target] and returns the copy's path.
+    Future<String> copyHelperTo(Directory target) async {
+      final copied = await Process.run(Platform.resolvedExecutable, [
+        'run',
+        'process_group:copy_helper',
+        target.path,
+      ]);
+      expect(copied.exitCode, 0, reason: '${copied.stderr}');
+      return (copied.stdout as String).trim();
+    }
+
+    test('finds the helper that copy_helper put beside it', () async {
+      final copy = await copyHelperTo(directory);
+      expect(File(copy).parent.path, directory.path);
+      // The helper exits with 64 when it is given no command.
+      expect((await Process.run(copy, [])).exitCode, 64);
+
+      final found = await run(program);
+      expect(found.exitCode, 0, reason: '${found.stderr}');
+      expect(
+        FileSystemEntity.identicalSync((found.stdout as String).trim(), copy),
+        isTrue,
+        reason: '${found.stdout}',
+      );
+    });
+
+    test(
+      'started through a link finds the helper in its own directory',
+      () async {
+        final copy = await copyHelperTo(directory);
+        final elsewhere = await Directory.systemTemp.createTemp(
+          'process_group_test_',
+        );
+        addTearDown(() => elsewhere.delete(recursive: true));
+        final link = await Link('${elsewhere.path}/linked').create(program);
+
+        final found = await run(link.path);
+        expect(found.exitCode, 0, reason: '${found.stderr}');
+        expect(
+          FileSystemEntity.identicalSync((found.stdout as String).trim(), copy),
+          isTrue,
+          reason: '${found.stdout}',
+        );
+      },
+      skip: Platform.isWindows ? 'A link needs a privilege there.' : null,
+    );
+
+    test('without a helper beside it says how to get one', () async {
+      final bare = await Directory.systemTemp.createTemp('process_group_test_');
+      addTearDown(() => bare.delete(recursive: true));
+      final copy = await File(program).copy(
+        bare.uri.resolve(File(program).uri.pathSegments.last).toFilePath(),
+      );
+
+      final found = await run(copy.path);
+      expect(found.exitCode, isNot(0));
+      expect(found.stderr, contains('process_group:copy_helper'));
+    });
+
+    test('copy_helper refuses a directory that does not exist', () async {
+      final copied = await Process.run(Platform.resolvedExecutable, [
+        'run',
+        'process_group:copy_helper',
+        '${directory.path}/missing',
+      ]);
+      expect(copied.exitCode, 1);
+      expect(copied.stderr, contains('is no directory'));
+    });
+  });
 }

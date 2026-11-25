@@ -191,10 +191,39 @@ riscv64 Linux. A checkout builds every target with
 `dart run zig_hook:build_binaries macos-arm64`. The tests build the host
 target when it is missing.
 
-A program with no package root at run time, such as one built with
-`dart compile exe`, ships the helper itself and passes its path to
-`GroupedProcess.start` as `helperPath`. `PROCESS_GROUP_HELPER` in the
-environment names the helper from outside the program.
+`GroupedProcess.start` looks for the helper in three places, in this
+order:
+
+- the path in `PROCESS_GROUP_HELPER`, which names the helper from outside
+  the program
+- the directory of the running program
+- `binary/<os>-<arch>/` under this package
+
+A program run with `dart run` or `dart test` finds the helper in the
+package. A compiled program cannot count on that. One built with
+`dart build cli` resolves a package only when it is started by an absolute
+path inside the checkout it was built in. Measured on Dart 3.14.0, it
+resolves none when started by a relative path, by its name on `PATH` or
+through a link. So the build of a compiled program takes the helper along:
+
+```sh
+dart build cli
+dart run process_group:copy_helper build/cli/macos_arm64/bundle/bin
+```
+
+`copy_helper` copies the helper for the machine it runs on into the
+directory it is given, which is the one that holds the program. The
+program finds its own directory from `Platform.resolvedExecutable`, where
+links are resolved, so every way of starting it leads to the helper.
+
+No build hook does this copy. On Dart 3.14.0 `dart build cli` takes every
+code asset for a shared library, and on macOS it fails with
+`Bad state: No element` on one that is an executable. A data asset is left
+out of the bundle, and the experiment that bundles it is not on the stable
+channel.
+
+A program that keeps the helper anywhere else passes its path to
+`GroupedProcess.start` as `helperPath`.
 
 The helper's own exit codes follow the shell. It exits with 127 when the
 command is not found, 126 when it cannot run, 64 for a missing command and
