@@ -108,7 +108,7 @@ fn exec(
     var directories = std.mem.splitScalar(u8, path, ':');
     while (directories.next()) |directory| {
         const dir = if (directory.len == 0) "." else directory;
-        const candidate = std.fmt.bufPrintZ(&buffer, "{s}/{s}", .{ dir, command }) catch continue;
+        const candidate = std.mem.printSentinel(&buffer, "{s}/{s}", .{ dir, command }, 0) catch continue;
         switch (execve(candidate.ptr, argv, envp)) {
             .ACCES => denied = true,
             .NOENT, .NOTDIR => {},

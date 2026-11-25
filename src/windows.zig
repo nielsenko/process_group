@@ -144,7 +144,7 @@ pub fn main(init: std.process.Init.Minimal) void {
 }
 
 fn succeeded(result: w.BOOL) bool {
-    return @intFromEnum(result) != 0;
+    return @backingInt(result) != 0;
 }
 
 fn fail(call: []const u8) noreturn {
